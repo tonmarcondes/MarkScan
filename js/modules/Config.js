@@ -25,9 +25,13 @@ export class Config {
       },
       exam: {
         questionsCount: 10,    // Número de questões
-        showFeedback: true,    // Exibir feedback detalhado
-        autoSave: true         // Salvar automaticamente
+        showFeedback: true     // Exibir feedback detalhado
       },
+      students: { mode: 'name', rosterText: '' },
+      review: { gradeScale: 10 },
+      calibration: { rows: 10, cols: 4, shape: 'circle', width: 10, height: 10, threshold: 128 },
+      annotation: { color: '#e6007e', textColor: '#ffffff', background: '#65104a', fontSize: 16,
+        font: 'Arial', fontStyle: 'bold', lineStyle: 'solid', lineWidth: 2, zoom: 100 },
       ui: {
         theme: 'light',        // Tema visual
         language: 'pt-BR'      // Idioma
@@ -44,12 +48,14 @@ export class Config {
     try {
       const saved = localStorage.getItem('omr-config');
       if (saved) {
-        return JSON.parse(saved);
+        const parsed = JSON.parse(saved);
+        return Object.fromEntries(Object.entries(this.defaults).map(([key, value]) =>
+          [key, { ...value, ...(parsed[key] || {}) }]));
       }
     } catch (error) {
       console.warn('Erro ao carregar configurações:', error);
     }
-    return { ...this.defaults };
+    return JSON.parse(JSON.stringify(this.defaults));
   }
 
   /**
@@ -69,7 +75,10 @@ export class Config {
    * @param {Object} updates - Atualizações a aplicar
    */
   update(updates) {
-    this.config = { ...this.config, ...updates };
+    for (const [key, value] of Object.entries(updates)) {
+      this.config[key] = value && typeof value === 'object'
+        ? { ...this.config[key], ...value } : value;
+    }
     this._saveConfig();
   }
 
@@ -124,7 +133,7 @@ export class Config {
    * Reseta configurações para os valores padrão
    */
   reset() {
-    this.config = { ...this.defaults };
+    this.config = JSON.parse(JSON.stringify(this.defaults));
     this._saveConfig();
   }
 

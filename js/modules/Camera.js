@@ -34,23 +34,42 @@ export class Camera {
     this.videoElement = videoElement;
     
     try {
-      this.stream = await navigator.mediaDevices.getUserMedia(this.constraints);
+      if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+        throw new Error('Use HTTPS ou localhost para acessar a câmera');
+      }
+      this.stop();
+      const requestId = this.requestId;
+      const stream = await navigator.mediaDevices.getUserMedia(this.constraints);
+      if (requestId !== this.requestId) {
+        stream.getTracks().forEach(track => track.stop());
+        throw new Error('Abertura da câmera cancelada');
+      }
+      this.stream = stream;
       this.videoElement.srcObject = this.stream;
       
       // Cria canvas oculto para captura
       this.canvasElement = document.createElement('canvas');
       this.context = this.canvasElement.getContext('2d', { willReadFrequently: true });
       
-      await new Promise((resolve) => {
-        this.videoElement.onloadedmetadata = () => {
-          this.videoElement.play();
-          resolve();
-        };
-      });
+      this.videoElement.muted = true;
+      let playTimeout;
+      try {
+        await Promise.race([this.videoElement.play(), new Promise((_, reject) => {
+          playTimeout = setTimeout(() => reject(new Error('A câmera não forneceu imagem. Tente abri-la novamente.')), 10000);
+        })]);
+      } finally { clearTimeout(playTimeout); }
+      if (requestId !== this.requestId) throw new Error('Abertura da câmera cancelada');
+      if (!this.videoElement.videoWidth) {
+        await new Promise((resolve, reject) => {
+          const timeout = setTimeout(() => reject(new Error('A câmera não forneceu imagem')), 10000);
+          this.videoElement.addEventListener('loadeddata', () => { clearTimeout(timeout); resolve(); }, { once: true });
+        });
+      }
       
       this.isInitialized = true;
       return true;
     } catch (error) {
+      this.stop();
       console.error('Erro ao inicializar câmera:', error);
       this.isInitialized = false;
       throw new Error(`Não foi possível acessar a câmera: ${error.message}`);
@@ -75,17 +94,20 @@ export class Camera {
    * Captura frame atual como ImageData
    * @returns {ImageData} Dados da imagem capturada
    */
-  captureFrame() {
-    if (!this.isInitialized || !this.videoElement || !this.context) {
-      throw new Error('Câmera não inicializada');
-    }
-
-    const { videoWidth, videoHeight } = this.videoElement;
-    this.canvasElement.width = videoWidth;
-    this.canvasElement.height = videoHeight;
-    
-    this.context.drawImage(this.videoElement, 0, 0, videoWidth, videoHeight);
-    return this.context.getImageData(0, 0, videoWidth, videoHeight);
+  captureFrame({ aspectRatio, maxDimension } = {}) {
+    if (!this.isInitialized || !this.videoElement || !this.context) throw new Error('Câmera não inicializada');
+    const { videoWidth, videoHeight, readyState } = this.videoElement;
+    if (!videoWidth || !videoHeight || readyState < 2) throw new Error('Aguarde a imagem da câmera antes de capturar');
+    // Center crop exactly matches the live stage's object-fit: cover.
+    let sourceWidth = videoWidth, sourceHeight = videoHeight;
+    if (aspectRatio && sourceWidth / sourceHeight > aspectRatio) sourceWidth = sourceHeight * aspectRatio;
+    else if (aspectRatio) sourceHeight = sourceWidth / aspectRatio;
+    const scale = maxDimension ? Math.min(1, maxDimension / Math.max(sourceWidth, sourceHeight)) : 1;
+    this.canvasElement.width = Math.max(1, Math.round(sourceWidth * scale));
+    this.canvasElement.height = Math.max(1, Math.round(sourceHeight * scale));
+    this.context.drawImage(this.videoElement, (videoWidth - sourceWidth) / 2, (videoHeight - sourceHeight) / 2,
+      sourceWidth, sourceHeight, 0, 0, this.canvasElement.width, this.canvasElement.height);
+    return this.context.getImageData(0, 0, this.canvasElement.width, this.canvasElement.height);
   }
 
   /**
@@ -100,6 +122,9 @@ export class Camera {
     }
 
     const { videoWidth, videoHeight } = this.videoElement;
+    if (!videoWidth || !videoHeight || this.videoElement.readyState < 2) {
+      throw new Error('Aguarde a imagem da câmera antes de capturar');
+    }
     this.canvasElement.width = videoWidth;
     this.canvasElement.height = videoHeight;
     this.context.drawImage(this.videoElement, 0, 0, videoWidth, videoHeight);
@@ -137,6 +162,7 @@ export class Camera {
    * Para a câmera e libera recursos
    */
   stop() {
+    this.requestId = (this.requestId || 0) + 1;
     if (this.stream) {
       this.stream.getTracks().forEach(track => track.stop());
       this.stream = null;

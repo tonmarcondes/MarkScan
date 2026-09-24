@@ -18,6 +18,7 @@ import Storage from './modules/Storage.js';
 import Config from './modules/Config.js';
 import UI from './modules/UI.js';
 import Scanner from './modules/Scanner.js';
+import ExamReview from './modules/ExamReview.js';
 
 class App {
   constructor() {
@@ -28,6 +29,7 @@ class App {
     this.camera = new Camera();
     this.scanner = new Scanner(this);
     this.ui = new UI(this, this.config);
+    this.review = new ExamReview(this, this.ui);
     
     this.currentTemplate = null;
     this.examInProgress = false;
@@ -46,7 +48,7 @@ class App {
       await this._loadTemplates();
       
       // Configura a câmera
-      await this._setupCamera();
+      // A câmera é aberta pelo usuário, sem bloquear uploads.
       
       // Atualiza interface com estado salvo
       this._restoreState();
@@ -83,29 +85,10 @@ class App {
   }
 
   /**
-   * Configura a câmera
-   */
-  async _setupCamera() {
-    const video = document.createElement('video');
-    video.autoplay = true;
-    video.playsInline = true;
-    video.style.display = 'none';
-    
-    document.body.appendChild(video);
-    
-    try {
-      await this.camera.initialize(video);
-    } catch (error) {
-      console.error('Erro ao configurar câmera:', error);
-      // Não é crítico - o usuário pode fazer upload de arquivos
-    }
-  }
-
-  /**
    * Registra o service worker para PWA
    */
   async _registerServiceWorker() {
-    if ('serviceWorker' in navigator) {
+    if ('serviceWorker' in navigator && location.protocol !== 'file:') {
       try {
         const registration = await navigator.serviceWorker.register('sw.js');
         console.log('Service Worker registrado:', registration.scope);
@@ -147,6 +130,13 @@ class App {
       throw new Error('Template não encontrado');
     }
     
+    if (!this.currentTemplate.imageSize && this.currentTemplate.url) {
+      const image = new Image();
+      await new Promise((resolve, reject) => { image.onload = resolve; image.onerror = () => reject(new Error('Imagem do gabarito inválida')); image.src = this.currentTemplate.url; });
+      this.currentTemplate.imageSize = { width: image.naturalWidth, height: image.naturalHeight };
+    }
+    this.currentImageData = null;
+    this.studentAnswers = null;
     // Salva último template usado
     this.config.update({ exam: { lastTemplate: templateId } });
     
@@ -158,17 +148,7 @@ class App {
    * @returns {Promise<Object>} Resultado do processamento
    */
   async captureAndProcess() {
-    if (!this.camera.isActive) {
-      throw new Error('Câmera não disponível');
-    }
-    
-    // Captura frame da câmera
-    const imageData = this.camera.captureFrame();
-    this.currentImageData = imageData;
-    
-    // Processa com OMR
-    const answers = await this.processOMR(imageData);
-    return { answers };
+    return this.scanner.captureAndProcess();
   }
 
   /**
@@ -181,64 +161,24 @@ class App {
       throw new Error('Nenhum template aplicado');
     }
     
-    // Em uma implementação real, o template conteria as posições das bolhas
-    // Por enquanto, usamos detecção automática
-    const bubblePositions = this.omr.detectBubbles(imageData);
-    const questionCount = this.config.get('exam.questionsCount') || 10;
-    
-    return this.omr.processOMR(imageData, bubblePositions, questionCount);
-  }
-
-  /**
-   * Calcula a pontuação com base nas respostas detectadas
-   * @returns {Object} Resultado da correção
-   */
-  calculateScore() {
-    if (!this.currentTemplate || !this.currentImageData) {
-      throw new Error('Dados insuficientes para correção');
+    const template = this.currentTemplate;
+    if (!template.layout || !Array.isArray(template.answers)) {
+      throw new Error('Este gabarito antigo não possui calibração. Cadastre novamente.');
     }
-    
-    // Obtém as respostas detectadas
-    const bubblePositions = this.omr.detectBubbles(this.currentImageData);
-    const questionCount = this.config.get('exam.questionsCount') || 10;
-    const studentAnswers = this.omr.processOMR(this.currentImageData, bubblePositions, questionCount);
-    
-    // Usa o gabarito como respostas corretas
-    const templateAnswers = this._extractTemplateAnswers();
-    
-    // Calcula pontuação
-    const scoringRules = this.config.get('scoring');
-    return this.omr.calculateScore(studentAnswers, templateAnswers, scoringRules);
+    this.omr.options.optionsPerQuestion = template.layout.cols;
+    const region = template.region || { shape: 'circle', width: template.radius * 2, height: template.radius * 2 * imageData.width / imageData.height };
+    Object.assign(this.omr.options, { sampleShape: region.shape, sampleWidth: region.width * imageData.width,
+      sampleHeight: region.height * imageData.height, threshold: template.threshold ?? 128 });
+    const positions = this.omr.detectBubbles(imageData, template.layout);
+    return this.omr.processOMR(imageData, positions, template.layout.rows);
   }
 
-  /**
-   * Extrai as respostas corretas do template
-   * Em uma implementação real, isso viria do template salvo
-   * @returns {Array} Respostas corretas do gabarito
-   */
-  _extractTemplateAnswers() {
-    // Por enquanto, retorna respostas de exemplo
-    // Em uma implementação real, o template seria analisado para obter o gabarito
-    // Este método seria chamado após análise do próprio gabarito
-    return [0, 1, 2, 3, 0, 1, 2, 3, 0, 1]; // A, B, C, D, A, B, C, D, A, B
+  calculateScore() {
+    if (!this.currentTemplate || !this.studentAnswers) throw new Error('Leia uma prova primeiro');
+    return this.omr.calculateScore(this.studentAnswers, this.currentTemplate.answers, this.config.get('scoring'));
   }
 
-  /**
-   * Salva o resultado da correção
-   */
-  saveResult() {
-    if (!this.currentTemplate || !this.currentImageData) return;
-    
-    const result = {
-      templateId: this.currentTemplate.id,
-      templateDescription: this.currentTemplate.description,
-      timestamp: new Date().toISOString(),
-      score: this.calculateScore()
-    };
-    
-    // Salva no histórico
-    this.storage.addToHistory(result);
-  }
+
 }
 
 // Inicializa a aplicação quando o DOM estiver pronto

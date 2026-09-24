@@ -48,6 +48,7 @@ export class OMR {
       const optionEnd = optionStart + optionsPerQuestion;
       
       let maxDarkness = -1;
+      let runnerUp = -1;
       let selectedOption = -1;
       
       // Para cada opção da questão
@@ -56,11 +57,14 @@ export class OMR {
         if (bubbleIndex >= bubblePositions.length) break;
         
         const [x, y] = bubblePositions[bubbleIndex];
-        const darkness = this._calculateDarkness(binaryData, x, y, 15);
+        const darkness = this._calculateDarkness(binaryData, x, y, Math.max(1, Math.round(this.options.sampleRadius || 5)));
         
         if (darkness > maxDarkness) {
+          runnerUp = maxDarkness;
           maxDarkness = darkness;
           selectedOption = option;
+        } else {
+          runnerUp = Math.max(runnerUp, darkness);
         }
         
         // Debug: marca opção analisada
@@ -69,7 +73,8 @@ export class OMR {
         }
       }
       
-      answers[question] = selectedOption;
+      answers[question] = maxDarkness < 90 ? -1 :
+        (runnerUp >= 90 && maxDarkness - runnerUp < 40 ? -2 : selectedOption);
     }
     
     if (debug) {
@@ -112,34 +117,22 @@ export class OMR {
    * @param {ImageData} imageData - Dados da imagem do gabarito
    * @returns {Array} Array de posições [[x, y], ...]
    */
-  detectBubbles(imageData) {
-    const hash = this._simpleHash(imageData);
-    if (this.cache.has(`bubbles:${hash}`)) {
-      return this.cache.get(`bubbles:${hash}`);
+  detectBubbles(imageData, layout) {
+    if (!layout) throw new Error('Calibre a grade de respostas primeiro');
+    const { rows, cols, left, top, right, bottom } = layout;
+    if (layout.positions) {
+      if (layout.positions.length !== rows * cols) throw new Error('Quantidade de áreas incompatível com a grade');
+      return layout.positions.map(([x, y]) => [Math.round(x * imageData.width), Math.round(y * imageData.height)]);
     }
-    
     const positions = [];
-    const { width, height } = imageData;
-    
-    // Estratégia: varre a imagem em busca de padrões de bolhas
-    // Para simplificar, usamos uma grade configurável (pode ser aprimorado com CV)
-    const rows = 10;  // 10 questões
-    const cols = 4;   // 4 opções por questão
-    
-    const startX = Math.floor(width * 0.2);  // 20% da largura
-    const startY = Math.floor(height * 0.2); // 20% da altura
-    const bubbleWidth = Math.floor((width * 0.6) / cols); // 60% da largura disponível
-    const bubbleHeight = Math.floor((height * 0.6) / rows); // 60% da altura disponível
-    
     for (let row = 0; row < rows; row++) {
       for (let col = 0; col < cols; col++) {
-        const x = startX + (col * bubbleWidth) + Math.floor(bubbleWidth * 0.5);
-        const y = startY + (row * bubbleHeight) + Math.floor(bubbleHeight * 0.5);
-        positions.push([x, y]);
+        positions.push([
+          Math.round((left + (right - left) * col / (cols - 1)) * imageData.width),
+          Math.round((top + (bottom - top) * row / Math.max(1, rows - 1)) * imageData.height)
+        ]);
       }
     }
-    
-    this.cache.set(`bubbles:${hash}`, positions);
     return positions;
   }
 
@@ -161,7 +154,7 @@ export class OMR {
     const details = [];
     
     for (let i = 0; i < templateAnswers.length; i++) {
-      const studentAnswer = studentAnswers[i] || -1; // -1 = em branco
+      const studentAnswer = studentAnswers[i] ?? -1; // -1 = em branco
       const correctAnswer = templateAnswers[i];
       
       let points = 0;
@@ -174,7 +167,7 @@ export class OMR {
         points = rules.correct;
         status = 'correct';
       } else {
-        points = rules.incorrect;
+        points = -Math.abs(rules.incorrect);
         status = 'incorrect';
       }
       
@@ -188,7 +181,7 @@ export class OMR {
       });
     }
     
-    const percentage = templateAnswers.length > 0 
+    const percentage = templateAnswers.length > 0 && rules.correct > 0
       ? (score / (templateAnswers.length * rules.correct)) * 100 
       : 0;
     
@@ -245,27 +238,17 @@ export class OMR {
     let darkness = 0;
     let pixels = 0;
     
-    // Calcula a média de escuridão na área circular
-    for (let y = Math.max(0, centerY - radius); 
-         y <= Math.min(height - 1, centerY + radius); 
-         y++) {
-      for (let x = Math.max(0, centerX - radius); 
-           x <= Math.min(width - 1, centerX + radius); 
-           x++) {
-        const dx = x - centerX;
-        const dy = y - centerY;
-        const distance = Math.sqrt(dx * dx + dy * dy);
-        
-        if (distance <= radius) {
-          const index = (y * width + x) * 4;
-          const gray = data[index]; // Em escala de cinza, R=G=B
-          // Inverte: preto = 255 (mais escuro), branco = 0 (mais claro)
-          darkness += (255 - gray);
-          pixels++;
-        }
+    const halfWidth = (this.options.sampleWidth || radius * 2) / 2;
+    const halfHeight = (this.options.sampleHeight || radius * 2) / 2;
+    const shape = this.options.sampleShape || 'circle';
+    for (let y = Math.max(0, Math.ceil(centerY - halfHeight)); y <= Math.min(height - 1, Math.floor(centerY + halfHeight)); y++) {
+      for (let x = Math.max(0, Math.ceil(centerX - halfWidth)); x <= Math.min(width - 1, Math.floor(centerX + halfWidth)); x++) {
+        if (shape === 'circle' && ((x - centerX) / halfWidth) ** 2 + ((y - centerY) / halfHeight) ** 2 > 1) continue;
+        darkness += 255 - data[(y * width + x) * 4];
+        pixels++;
       }
     }
-    
+
     return pixels > 0 ? darkness / pixels : 0;
   }
   
@@ -408,6 +391,7 @@ export class OMR {
   }
   
   _indexToLetter(index) {
+    if (index === -2) return 'Múltipla';
     if (index < 0) return '';
     return String.fromCharCode(65 + index); // 0=A, 1=B, 2=C, 3=D, ...
   }

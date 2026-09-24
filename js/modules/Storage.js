@@ -19,7 +19,10 @@ export class Storage {
                       typeof window.indexedDB !== 'undefined';
     
     if (this.useIndexedDB) {
-      this._initIndexedDB();
+      this.ready = this._initIndexedDB().catch(error => {
+        console.warn('IndexedDB indisponível:', error);
+        this.useIndexedDB = false;
+      });
     } else {
       // Fallback para localStorage
       console.warn('IndexedDB não disponível, usando localStorage como fallback');
@@ -65,12 +68,13 @@ export class Storage {
    * @returns {Promise<void>}
    */
   async save(key, value) {
+    await this.ready;
     if (this.useIndexedDB && this.db) {
       return this._saveIndexedDB(key, value, 'templates');
     } else {
       // localStorage fallback
       const stringValue = typeof value === 'string' ? value : JSON.stringify(value);
-      localStorage.setItem(key, stringValue);
+      localStorage.setItem(`templates:${key}`, stringValue);
     }
   }
 
@@ -80,11 +84,12 @@ export class Storage {
    * @returns {Promise<*>} Valor armazenado ou null se não existir
    */
   async load(key) {
+    await this.ready;
     if (this.useIndexedDB && this.db) {
       return this._loadIndexedDB(key, 'templates');
     } else {
       // localStorage fallback
-      const value = localStorage.getItem(key);
+      const value = localStorage.getItem(`templates:${key}`);
       return value ? JSON.parse(value) : null;
     }
   }
@@ -95,11 +100,12 @@ export class Storage {
    * @returns {Promise<void>}
    */
   async delete(key) {
+    await this.ready;
     if (this.useIndexedDB && this.db) {
       return this._deleteIndexedDB(key, 'templates');
     } else {
       // localStorage fallback
-      localStorage.removeItem(key);
+      localStorage.removeItem(`templates:${key}`);
     }
   }
 
@@ -109,6 +115,7 @@ export class Storage {
    * @returns {Promise<Array<string>>} Lista de chaves
    */
   async listKeys(storeName = 'templates') {
+    await this.ready;
     if (this.useIndexedDB && this.db) {
       return this._listKeysIndexedDB(storeName);
     } else {
@@ -130,6 +137,7 @@ export class Storage {
    * @returns {Promise<void>}
    */
   async clear() {
+    await this.ready;
     if (this.useIndexedDB && this.db) {
       return this._clearIndexedDB();
     } else {
@@ -154,9 +162,11 @@ export class Storage {
         { id: key, value: value, type: 'string' } : 
         { id: key, ...value, type: 'object' };
       
+      if (store.keyPath === 'key') item.key = key;
       const request = store.put(item);
       
-      request.onsuccess = () => resolve();
+      transaction.oncomplete = () => resolve();
+      transaction.onabort = () => reject(transaction.error || new Error('Transação cancelada'));
       request.onerror = () => reject(new Error(`Erro ao salvar em IndexedDB: ${request.error}`));
     });
   }
@@ -183,7 +193,7 @@ export class Storage {
           resolve(result.value);
         } else {
           // Remove os campos de metadados
-          const { id, type, ...data } = result;
+          const { type, ...data } = result;
           resolve(data);
         }
       };
@@ -203,7 +213,8 @@ export class Storage {
       const store = transaction.objectStore(storeName);
       const request = store.delete(key);
       
-      request.onsuccess = () => resolve();
+      transaction.oncomplete = () => resolve();
+      transaction.onabort = () => reject(transaction.error || new Error('Transação cancelada'));
       request.onerror = () => reject(new Error(`Erro ao deletar do IndexedDB: ${request.error}`));
     });
   }
@@ -231,8 +242,8 @@ export class Storage {
         return;
       }
       
-      const transaction = this.db.transaction(Object.keys(this.db.objectStoreNames), 'readwrite');
-      Object.keys(this.db.objectStoreNames).forEach(storeName => {
+      const transaction = this.db.transaction(Array.from(this.db.objectStoreNames), 'readwrite');
+      Array.from(this.db.objectStoreNames).forEach(storeName => {
         const store = transaction.objectStore(storeName);
         store.clear();
       });
@@ -249,6 +260,7 @@ export class Storage {
    * @returns {Promise<void>}
    */
   async saveConfig(key, value) {
+    await this.ready;
     if (this.useIndexedDB && this.db) {
       return this._saveIndexedDB(key, value, 'config');
     } else {
@@ -263,6 +275,7 @@ export class Storage {
    * @returns {Promise<*>} Valor da configuração ou null
    */
   async loadConfig(key) {
+    await this.ready;
     if (this.useIndexedDB && this.db) {
       return this._loadIndexedDB(key, 'config');
     } else {
@@ -277,6 +290,7 @@ export class Storage {
    * @returns {Promise<number>} ID da entrada adicionada
    */
   async addToHistory(entry) {
+    await this.ready;
     if (this.useIndexedDB && this.db) {
       return this._addToHistoryIndexedDB(entry);
     } else {
@@ -302,23 +316,51 @@ export class Storage {
       const newEntry = { ...entry, timestamp: new Date().toISOString() };
       const request = store.add(newEntry);
       
-      request.onsuccess = () => resolve(request.result);
+      transaction.oncomplete = () => resolve(request.result);
+      transaction.onabort = () => reject(transaction.error || new Error('Transação cancelada'));
       request.onerror = () => reject(new Error(`Erro ao adicionar ao histórico: ${request.error}`));
     });
   }
   
+  /** Atomically commit grade + evidence. A quota failure cannot leave a grade without its image. */
+  async saveAcceptedResult(record, evidence) {
+    await this.ready;
+    if (this.useIndexedDB && this.db) {
+      return new Promise((resolve, reject) => {
+        const transaction = this.db.transaction(['history', 'config'], 'readwrite');
+        transaction.objectStore('history').add(record);
+        transaction.objectStore('config').put({ key: `evidence:${record.id}`, id: `evidence:${record.id}`, value: evidence, type: 'string' });
+        transaction.oncomplete = () => resolve(record.id);
+        transaction.onabort = () => reject(transaction.error || new Error('Transação cancelada'));
+        transaction.onerror = () => reject(transaction.error || new Error('Erro ao salvar a correção'));
+      });
+    }
+    const history = JSON.parse(localStorage.getItem('history') || '[]');
+    if (history.some(item => item.id === record.id)) throw new Error('Esta correção já foi salva');
+    history.push({ ...record, evidence });
+    localStorage.setItem('history', JSON.stringify(history));
+    return record.id;
+  }
+
+  async getEvidence(id) {
+    await this.ready;
+    if (this.useIndexedDB && this.db) return this.loadConfig(`evidence:${id}`);
+    return JSON.parse(localStorage.getItem('history') || '[]').find(record => record.id === id)?.evidence || null;
+  }
+
   /**
    * Obtém o histórico
    * @param {number} limit - Número máximo de entradas (opcional)
    * @returns {Promise<Array>} Lista de entradas do histórico
    */
   async getHistory(limit) {
+    await this.ready;
     if (this.useIndexedDB && this.db) {
       return this._getHistoryIndexedDB(limit);
     } else {
       // localStorage fallback
-      const history = JSON.parse(localStorage.getItem('history') || '[]');
-      return limit ? history.slice(-limit) : history;
+      const history = JSON.parse(localStorage.getItem('history') || '[]').sort((a, b) => b.timestamp.localeCompare(a.timestamp));
+      return limit ? history.slice(0, limit) : history;
     }
   }
   
@@ -331,24 +373,10 @@ export class Storage {
       
       const transaction = this.db.transaction(['history'], 'readonly');
       const store = transaction.objectStore('history');
-      const index = store.index('timestamp');
-      
-      // Get all entries sorted by timestamp descending
-      const request = index.openCursor(null, 'prev');
-      const results = [];
-      
-      request.onsuccess = (event) => {
-        const cursor = event.target.result;
-        if (cursor) {
-          results.push(cursor.value);
-          if (!limit || results.length < limit) {
-            cursor.continue();
-          } else {
-            resolve(results);
-          }
-        } else {
-          resolve(results);
-        }
+      const request = store.getAll();
+      request.onsuccess = () => {
+        const records = request.result.sort((a, b) => (b.acceptedAt || b.timestamp).localeCompare(a.acceptedAt || a.timestamp));
+        resolve(limit ? records.slice(0, limit) : records);
       };
       
       request.onerror = () => reject(new Error(`Erro ao obter histórico: ${request.error}`));

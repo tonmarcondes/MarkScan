@@ -1,134 +1,119 @@
-# OMR Scanner PWA
+# MarkScan OMR
 
-Sistema Progressive Web App para leitura óptica de marcação (OMR) destinado à correção automática de provas objetivas através de comparação com gabaritos de referência.
+Aplicativo web para corrigir folhas de respostas com uma **grade regular, uma questão por linha**, usando imagens ou câmera. O processamento acontece no navegador; gabaritos, configurações e histórico são armazenados localmente.
 
-## ✨ Funcionalidades Principais
+## Executar
 
-- **Totalmente configurável pelo usuário**: Você define o modelo (gabarito) e as regras de pontuação
-- **Funciona offline**: PWA com service worker para uso em qualquer ambiente
-- **Privacidade absoluta**: Todo processamento ocorre localmente no dispositivo
-- **Interface responsiva**: Funciona em smartphones, tablets e desktops
-- **Nenhuma dependência externa**: Código puro JavaScript sem bibliotecas pesadas
+Na pasta do projeto:
 
-## 📱 Como Usar
-
-### 1. Acesso Inicial
-Acesse o sistema através de qualquer navegador moderno (Chrome, Firefox, Safari, Edge) em:
+```sh
+python3 -m http.server 8080
 ```
-https://seu-dominio.com
+
+Abra http://localhost:8080 em um navegador atualizado. Não abra `index.html` diretamente por `file://`: os módulos JavaScript precisam ser servidos por HTTP.
+
+Para acessar a câmera em outro dispositivo, publique em **HTTPS**. Um endereço HTTP de rede local (por exemplo, `http://192.168.x.x:8080`) não oferece o mesmo acesso à câmera que `localhost`. Autorize a câmera quando solicitado. A câmera só é ligada ao clicar no botão. Na leitura de provas, permanece aberta entre alunos; é desligada ao fechar a câmera ou sair da página. Na fotografia de gabaritos, é desligada após capturar. Upload de imagem continua disponível quando a câmera falha.
+
+## Configurações (engrenagem)
+
+Clique no ícone **⚙** do cabeçalho. Todas as configurações ficam nessa janela:
+
+- **Grade:** quantidade de questões e alternativas.
+- **Área de leitura:** bolha/círculo, quadrado ou retângulo; diâmetro/largura, altura do retângulo e limiar de leitura. As dimensões são em pixels da imagem carregada. O formato define os pixels usados na correção, além do contorno exibido.
+- **Identificação sobre a imagem:** cor e espessura do contorno, traço contínuo/tracejado, cor dos números, fundo, tamanho, fonte e estilo do texto. O fundo é sólido e combinações sem contraste suficiente são recusadas.
+- **Ampliação:** ajustar à largura, 150%, 200% ou 300%. Em imagens ampliadas, role a área da imagem para alcançar outros pontos.
+- **Pontuação:** acerto, desconto por erro, pontos em branco e nota máxima.
+- **Alunos:** identificação por nome, lista pré-carregada ou sem identificação.
+
+Clique em **Salvar configurações** para aplicar e persistir. Fechar ou pressionar Esc cancela os ajustes não salvos. A aparência vale para as imagens exibidas; a geometria e o limiar de um gabarito salvo só mudam quando ele é editado e salvo novamente.
+
+## Cadastrar e corrigir a calibração do gabarito
+
+1. Selecione a imagem ou clique em **Fotografar gabarito**, e informe um nome.
+2. Na engrenagem, confira quantidade de questões, alternativas, formato e dimensões da área de leitura.
+3. Clique no centro da primeira área (questão 1, alternativa A). **O número 1 aparece imediatamente**, acompanhado da instrução para o segundo clique.
+4. Clique no centro da última área (última alternativa da última questão). A grade será preenchida com números sequenciais, da esquerda para a direita e de cima para baixo. A lista abaixo associa cada número à questão e à alternativa.
+5. Se um ponto estiver errado, clique no número na imagem ou na lista, depois clique no novo centro. As **setas** ajustam um pixel; **Shift + seta** ajusta dez pixels. **Esc** cancela a seleção. **Desfazer** recupera a posição anterior.
+6. **Reposicionar primeira/última** recalcula a grade a partir dos extremos e remove ajustes individuais; **Refazer grade** volta ao primeiro clique. Alterar a quantidade de questões/alternativas na engrenagem também remove os ajustes individuais.
+7. Confira as áreas de leitura e as respostas detectadas. Cada contorno deve ficar dentro da marca impressa, sem incluir sua borda. Clique em **Salvar Gabarito**. Questões em branco ou ambíguas impedem o salvamento.
+
+A imagem original, a calibração, as posições ajustadas e as respostas ficam salvas. Os números são apenas sobreposições visuais e nunca entram na leitura dos pixels. Para corrigir mais tarde, selecione o gabarito e clique em **Editar gabarito selecionado**, faça os ajustes e salve; isso atualiza o mesmo registro.
+
+Gabaritos cadastrados antes desta versão não guardavam a imagem original: nesse caso, é necessário selecionar a imagem e cadastrá-los novamente. Para apenas corrigir provas com um gabarito salvo, use **Aplicar Gabarito**.
+
+## Correção rápida com câmera
+
+1. Aplique o gabarito e clique em **Abrir câmera para prova**.
+2. Alinhe a folha aos contornos e números. A câmera mostra **nota e pontos ao vivo**, recalculados aproximadamente a cada 300 ms (conforme a capacidade do dispositivo).
+3. Aguarde três leituras iguais e confira o resultado. “Leitura estável” significa repetição das respostas, não garantia de enquadramento correto. Uma folha em branco ou fora de posição também pode produzir leituras estáveis.
+4. Informe o aluno, se configurado, e clique em **Aceitar e salvar evidência**. A nota permanece apenas como prévia até esse aceite.
+5. Clique em **Próxima prova**. A câmera continua aberta; o nome digitado é limpo, ou a lista avança para o próximo aluno. Cada aceite cria um novo registro, inclusive se você selecionar novamente um aluno já corrigido.
+
+**Congelar para conferir** mantém um quadro e permite examinar o detalhamento antes de aceitar. **Voltar à leitura ao vivo** descarta essa prévia e retoma a câmera. A nota e a imagem usam sempre o mesmo quadro, mesmo que outra folha passe pela câmera durante o salvamento.
+
+A visualização é recortada ao centro para a proporção do gabarito (quando sua imagem está disponível). O mesmo recorte é usado na leitura e na evidência; o aplicativo não detecta automaticamente as bordas do papel nem corrige perspectiva.
+
+## Alunos, notas e evidências
+
+Na engrenagem, escolha **Sem identificação**, **Digitar nome** (padrão) ou **Selecionar de uma lista**. No modo configurado com identificação, o aceite exige um nome ou aluno selecionado.
+
+A lista pode ser colada ou carregada de um arquivo `.txt`, com um aluno por linha:
+
+```text
+Ana Silva
+2026002;Bruno Souza
 ```
- ou simplesmente abra `index.html` em seu navegador para uso local.
 
-### 2. Registro do Gabarito (Modelo)
-**Este é o passo mais importante - você define o modelo de correção**
+Para nomes iguais, use matrículas diferentes. O carregamento da lista só é confirmado ao salvar as configurações. Você também pode definir a nota máxima (padrão 10); a nota é a pontuação obtida dividida pela pontuação máxima, multiplicada por esse valor. Descontos podem produzir nota negativa.
 
-1. Clique em "Selecionar imagem do gabarito"
-2. Escolha uma imagem clara do gabarito de referência (prova com todas as respostas corretas marcadas)
-3. O sistema detectará automaticamente as posições das bolhas de resposta
-4. Dê um nome descritivo para este gabarito (ex: "Matemática_1ºBimestre_2026")
-5. Clique em "Salvar Gabarito"
+Ao aceitar, são salvos juntos:
 
-> ⚠️ **Importante**: O gabarito de referência deve ser uma imagem nítida onde:
-> - As bolhas de resposta estejam visíveis e bem definidas
-> - O formato da prova esteja alinhado (não inclinado excessivamente)
-> - Iluminação uniforme (evitar sombras fortes)
+- Aluno/matrícula, gabarito, respostas lidas, respostas corretas e regras usadas.
+- Pontos, nota, horário da captura e do aceite.
+- Imagem JPEG da prova com cabeçalho identificando aluno, nota, data e registro, além do detalhamento por questão. Os pixels da prova vêm do quadro aceito, sem os números sobrepostos de calibração.
 
-### 3. Configuração de Pontuação
-Defina como as respostas serão avaliada:
+Em **Correções aceitas**, use **Ver imagem** para consultar a evidência e **Baixar imagem** para guardar ou entregar o arquivo. A nota não é salva se o armazenamento da imagem falhar; a prévia fica disponível para tentar novamente. Registros de versões antigas, que não guardavam evidências, continuam aparecendo no histórico.
 
-1. Acesse o menu de configurações (ícone de engrenagem)
-2. Ajuste os valores:
-   - **Acerto**: Pontos ganhos por resposta correta (padrão: 1)
-   - **Erro**: Pontos perdidos por resposta incorreta (padrão: 0)
-   - **Em branco**: Pontos para questões não respondidas (padrão: 0)
-3. Salve as configurações
+## Corrigir por arquivo
 
-### 4. Correção de Provas
-Agora você pode corrigir provas de alunos:
+Aplique o gabarito, selecione a imagem da prova, confira o aluno e as respostas, e clique em **Aceitar e salvar evidência**. Upload usa o mesmo histórico e o mesmo processo de confirmação da câmera.
 
-1. Certifique-se de que o gabarito correto está selecionado na lista de modelos
-2. Clique em "Selecionar imagem da prova"
-3. Escolha a foto da prova do aluno para correção
-4. Aguarde o processamento (aparecerá um indicador de carregamento)
-5. Visualize o resultado:
-   - Número de acertos
-   - Nota percentage
-   - Detalhamento por questão (resposta do aluno vs gabarito)
+Use PNG, JPEG ou outro formato de imagem aceito pelo navegador. PDF não é aceito. Se HEIC não abrir, converta para JPEG. Imagens de arquivo são reduzidas para no máximo 1800 pixels no maior lado; a leitura ao vivo usa até 1280 pixels para manter a velocidade.
 
-### 5. Histórico e Reutilização
-- Todos os gabaritos registrados são salvos localmente no seu dispositivo
-- Você pode alternar entre diferentes gabaritos salvo a qualquer momento
-- As configurações de pontuação também são preservadas entre sessões
+## Limitações da leitura
 
-## ⚙️ Configurações Avançadas
+- **Não há detecção automática de bolhas nem alinhamento por perspectiva.** A versão anterior usava uma grade fixa e respostas simuladas, apesar da descrição no README.
+- As provas precisam usar o mesmo formulário, proporção, enquadramento e orientação do gabarito. Diferenças de resolução são compensadas pelas coordenadas proporcionais; deslocamento, rotação, recortes diferentes e perspectiva não são compensados.
+- O layout deve ter uma única grade regular, com alternativas da esquerda para a direita e questões de cima para baixo. Múltiplos blocos/colunas de questões não são suportados.
+- O motor compara a escuridão no interior de cada bolha. Sombras, marcas fracas ou calibração incorreta podem gerar erros. Confira sempre as respostas e teste com provas conhecidas antes de usar em lote.
+- A grade inicial é regular; posições individuais podem ser corrigidas manualmente. A calibração deve ser conferida visualmente antes de salvar.
 
-O sistema permite ajustes finos no processo de detecção (acessíveis através do menu "Configurações Avançadas"):
+## Offline e armazenamento
 
-| Parâmetro | Descrição | Valor Padrão |
-|-----------|-----------|--------------|
-| Limiar de Binarização | Sensibilidade para detectar marcações (0-255) | 128 |
-| Tamanho Mínimo da Bolha | Área mínima considerada como bolha válida | 10px |
-| Tamanho Máximo da Bolha | Área máxima considerada como bolha válida | 40px |
-| Espaçamento entre Opções | Distância esperada entre alternativas | 45px |
-| Opções por Questão | Número de alternativas por questão (A,B,C,D...) | 4 |
+O service worker guarda os arquivos do aplicativo após o primeiro acesso bem-sucedido por localhost ou HTTPS, permitindo reabrir offline. O cache usa caminhos relativos, inclusive para instalações em subpastas. Não há dependências externas no aplicativo.
 
-> 💡 **Dica**: Ajuste estes parâmetros apenas se tiver dificuldades na detecção automática. Valores extremos podem causar falsos positivos/negativos.
+Gabaritos (incluindo suas imagens originais), histórico e evidências usam IndexedDB, com alternativa em localStorage quando IndexedDB está indisponível. A pontuação fica em localStorage. Os dados pertencem ao navegador e à origem utilizados; mudar porta, domínio ou navegador não transfere os dados. Limpar dados do site remove os registros.
 
-## 🔧 Requisitos Técnicos
+## Testes
 
-- **Navegadores suportados**: Chrome 55+, Firefox 50+, Safari 10.1+, Edge 79+
-- **Permissões necessárias**: Acesso à câmera (para captura direta) e armazenamento local
-- **Funciona offline**: Sim, após o primeiro carregamento
-- **Armazenamento utilizado**: IndexedDB (via wrapper na módulo Storage)
-- **Tamanho do aplicativo**: <500KB (excluding assets)
+Com o servidor na porta 8080, Node.js 18+ e Playwright disponível:
 
-## 🛡️ Privacidade e Segurança
+```sh
+node tests/browser.cjs
+node tests/review.cjs
+```
 
-- **Nenhum dado deixa seu dispositivo**: Todo processamento de imagem ocorre localmente
-- **Nenhum coletor de analytics**: Não enviamos informações para servidores externos
-- **Armazenamento local**: Gabaritos e configurações são salvos apenas no seu navegador
-- **Pode ser usado 100% offline**: Perfeito para salas de aula sem internet
+O teste usa Chrome instalado e câmera simulada. Cobre cadastro por upload, calibração, configurações, formatos de leitura, contraste, reposicionamento, desfazer, teclado, edição após recarga, tela móvel/ampliação, respostas reais (incluindo A, branco e múltipla), histórico, persistência após recarga, captura/liberação da câmera, imagem inválida, permissão negada, uso offline e alternativa localStorage. Não valida a câmera física nem a precisão em fotos reais.
 
-## 📝 Notas de Uso
+## GitHub Pages
 
-1. **Qualidade da imagem afeta resultados**: Fotos borradas, com baixa iluminação ou distorção perspectiva podem reduzir a precisão
-2. **Formato de bolha recomendado**: Circular ou ovalada com preenchimento sólido
-3. **Marcação clara**: Use caneta preta ou lápis 2B para melhor contraste
-4. **Prova alinhada**: Tente manter a prova o mais reta possível ao fotografar
-5. **Teste prévio**: Sempre faça um teste com uma prova conhecida antes de corrigir em lote
+O aplicativo é estático e pode ser publicado no GitHub Pages, sem backend ou chaves de API. Use a branch `main`, pasta raiz, como origem de publicação. O arquivo `.nojekyll` permite servir os arquivos diretamente.
 
-## 🐛 Solução de Problemas
+- Repositório: https://github.com/tonmarcondes/MarkScan
+- Endereço do projeto: https://tonmarcondes.github.io/MarkScan/
+- Os caminhos de módulos e cache são relativos, incluindo funcionamento na subpasta `/MarkScan/`.
+- A câmera requer permissão do navegador; o endereço publicado usa HTTPS.
+- Alunos, notas, fotos e gabaritos permanecem no navegador. Publicar o código não publica esses dados.
+- `localhost` e GitHub Pages são origens diferentes: os dados cadastrados localmente não aparecem automaticamente no endereço publicado. Limpar dados do navegador remove as evidências; baixe as imagens que precisar conservar.
 
-| Problema | Possível Causa | Solução |
-|----------|----------------|---------|
-| Não detecta marcações | Limiar muito alto/baixo | Ajuste "Limiar de Binarização" nas configurações avançadas |
-| Marcações falsas | Ruído na imagem | Aumente o "Tamanho Mínimo da Bolha" |
-| Sistema travando | Imagem muito grande | Reduza a resolução da foto antes de upload |
-| Gabarito não salvo | Limite de armazenamento excedido | Limpe dados do site nas configurações do navegador |
-| Câmera não funcionando | Permissão negada | Conceda acesso à câmera quando solicitado pelo navegador |
-
-## 📄 Licença
-
-Este projeto está licenciado sob a [Licença MIT](LICENSE) - sinta-se livre para usar, modificar e distribuir conforme necessário.
-
-## 🤝 Contribuindo
-
-Contribuições são bem-vindas! Por favor:
-1. Fork o repositório
-2. Crie uma branch para sua feature (`git checkout -b feature/AmazingFeature`)
-3. Commit suas mudanças (`git commit -m 'Add some AmazingFeature'`)
-4. Push para a branch (`git push origin feature/AmazingFeature`)
-5. Abra um Pull Request
-
-## 📞 Suporte
-
-Para questões, sugestões ou relatos de bugs, por favor abra uma issue no repositório GitHub oficial.
-
----
-
-**Último lembrete importante**: Você, como professor ou educador, é o responsável por:
-1. Selecionar o gabarito de referência correto
-2. Definir as regras de pontuação adequadas para sua avaliação
-3. Determinar o momento apropriado para realizar a leitura das provas dos alunos
-
-Este sistema é uma ferramenta de apoio - o julgamento pedagógico permanece sempre com você.
+Os testes também aceitam `MARKSCAN_URL` para validar a publicação, usando dados fictícios em um navegador isolado. O teste de revisão cobre nota ao vivo, identificação obrigatória, importação de lista, evidência do quadro exato, prevenção de duplo aceite, congelamento, falha/repetição de salvamento, transação atômica, histórico após recarga/offline e download. A câmera física e a precisão em fotos reais precisam ser verificadas no dispositivo de uso.

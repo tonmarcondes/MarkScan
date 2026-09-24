@@ -1,3 +1,5 @@
+import { parseRoster } from './Roster.js';
+
 /**
  * UI Module - Interface do usuário
  * 
@@ -34,7 +36,8 @@ export class UI {
         <div class="header-inner">
           <div class="logo">MarkScan</div>
           <div class="header-actions">
-            <span class="status-badge">Offline Ready</span>
+            <span class="status-badge">Processamento local</span>
+            <button id="open-settings" class="btn settings-button" aria-label="Configurações" title="Configurações" aria-haspopup="dialog"><span aria-hidden="true" class="gear-symbol">⚙</span></button>
           </div>
         </div>
       `;
@@ -51,39 +54,44 @@ export class UI {
     main.innerHTML = `
       <div class="workflow">
         <section class="step-card" id="step1">
-          <h3>1. Selecionar Gabarito</h3>
+          <h3>1. Cadastrar e selecionar gabarito</h3>
+          <label>Selecionar imagem do gabarito <input id="template-file" type="file" accept="image/*"></label>
+          <button id="template-camera" class="btn secondary">Fotografar gabarito</button>
+          <div id="template-editor" hidden>
+            <label>Nome <input id="template-name" type="text" maxlength="100"></label>
+            <p id="calibration-summary"></p>
+            <div class="calibration-guide" aria-live="polite">
+              <strong id="calibration-instruction"></strong>
+              <p>O primeiro clique aparece imediatamente. Os números identificam as áreas de leitura e não alteram a imagem original.</p>
+            </div>
+            <div class="calibration-actions">
+              <button id="move-first" class="btn secondary">Reposicionar primeira</button>
+              <button id="move-last" class="btn secondary">Reposicionar última</button>
+              <button id="undo-position" class="btn secondary">Desfazer</button>
+              <button id="reset-grid" class="btn secondary">Refazer grade</button>
+            </div>
+            <div class="canvas-viewport"><canvas id="template-preview" tabindex="0" aria-label="Imagem do gabarito: clique para posicionar as áreas de leitura"></canvas></div>
+            <p>Para corrigir uma área, clique no seu número na imagem ou na lista abaixo, depois clique no novo centro. Use as setas do teclado para ajustes finos (Shift: 10 pixels); Esc cancela a seleção.</p>
+            <div id="position-list" class="position-list" aria-label="Áreas de leitura"></div>
+            <p id="template-answers" role="status"></p>
+            <button id="save-template" class="btn primary">Salvar Gabarito</button>
+          </div>
           <p>Escolha o modelo de correção que será usado</p>
           <select id="template-select" class="select-field"></select>
           <button id="btn-apply-template" class="btn primary">Aplicar Gabarito</button>
-        </section>
-        
-        <section class="step-card" id="step2">
-          <h3>2. Configurar Pontuação</h3>
-          <div class="score-grid">
-            <div>
-              <label for="score-correct">Acerto</label>
-              <input type="number" id="score-correct" min="0" step="0.5">
-            </div>
-            <div>
-              <label for="score-incorrect">Erro</label>
-              <input type="number" id="score-incorrect" min="0" step="0.5">
-            </div>
-            <div>
-              <label for="score-blank">Em Branco</label>
-              <input type="number" id="score-blank" min="0" step="0.5">
-            </div>
-          </div>
-          <button id="btn-save-score" class="btn secondary">Salvar Pontuação</button>
+          <button id="edit-template" class="btn secondary">Editar gabarito selecionado</button>
         </section>
         
         <section class="step-card" id="step3">
-          <h3>3. Ler Prova</h3>
+          <h3>2. Ler Prova</h3>
           <p>Leia a prova do aluno para correção automática</p>
-          <button id="btn-scan" class="btn danger">Iniciar Leitura</button>
-          <div id="scan-status" class="scan-status"></div>
-          <div id="results-panel" class="results-panel"></div>
+          <p>Use o mesmo formulário, enquadramento e alinhamento do gabarito. A leitura não corrige perspectiva nem rotação.</p>
+          <label>Selecionar imagem da prova <input id="exam-file" type="file" accept="image/*"></label>
+          <button id="exam-camera" class="btn secondary">Abrir câmera para prova</button>
+          ${this.app.review.markup()}
         </section>
       </div>
+      ${this._settingsMarkup()}
     `;
   }
 
@@ -95,24 +103,406 @@ export class UI {
       this._applyTemplate();
     });
     
-    document.getElementById('btn-save-score').addEventListener('click', () => {
-      this._saveScoring();
+    document.getElementById('open-settings').addEventListener('click', () => {
+      this._fillSettings();
+      document.getElementById('settings-dialog').showModal();
     });
+    document.getElementById('close-settings').addEventListener('click', () => document.getElementById('settings-dialog').close());
+    document.getElementById('settings-form').addEventListener('submit', event => {
+      event.preventDefault(); this._saveSettings();
+    });
+    document.getElementById('mark-shape').addEventListener('change', () => {
+      document.getElementById('mark-height').disabled = document.getElementById('mark-shape').value !== 'rectangle';
+    });
+    document.getElementById('edit-template').addEventListener('click', () => this._editSavedTemplate());
     
     document.getElementById('btn-scan').addEventListener('click', () => {
       this._startScan();
     });
     
-    // Vincula inputs de pontuação
-    const scoreInputs = ['score-correct', 'score-incorrect', 'score-blank'];
-    scoreInputs.forEach(id => {
-      const input = document.getElementById(id);
-      if (input) {
-        input.addEventListener('input', () => {
-          this._validateScoreInput(id);
-        });
-      }
+    for (const kind of ['template', 'exam']) {
+      document.getElementById(`${kind}-file`).addEventListener('change', async event => {
+        const file = event.target.files[0];
+        if (!file) return;
+        try {
+          const image = await this._loadImage(file);
+          if (kind === 'template') this._editTemplate(image);
+          else await this._startScan(image);
+        } catch (error) { this._showMessage(error.message, 'error'); }
+        finally { event.target.value = ''; }
+      });
+      document.getElementById(`${kind}-camera`).addEventListener('click', () => this._openCamera(kind));
+    }
+    document.getElementById('stop-camera').addEventListener('click', () => this._closeCamera());
+    document.getElementById('save-template').addEventListener('click', () => this._saveTemplate());
+    document.getElementById('template-preview').addEventListener('click', event => this._positionClick(event));
+    document.getElementById('template-preview').addEventListener('keydown', event => this._positionKey(event));
+    document.getElementById('move-first').addEventListener('click', () => { this.moveTarget = 'first'; this._drawTemplate(); });
+    document.getElementById('move-last').addEventListener('click', () => { this.moveTarget = 'last'; this._drawTemplate(); });
+    document.getElementById('reset-grid').addEventListener('click', () => {
+      this._rememberPositions(); this.corners = []; this.positions = null; this.moveTarget = null; this._drawTemplate();
     });
+    document.getElementById('undo-position').addEventListener('click', () => {
+      const state = this.positionHistory.pop();
+      if (state) { Object.assign(this, state); this.moveTarget = null; this._drawTemplate(); }
+    });
+    window.addEventListener('resize', () => { this._drawTemplate(); this._redrawExam(); this.app.review.drawGuide(); });
+    window.addEventListener('pagehide', () => this._closeCamera());
+    document.getElementById('roster-file').addEventListener('change', async event => {
+      const file = event.target.files[0];
+      if (!file) return;
+      try {
+        if (file.size > 1024 * 1024) throw new Error('Use uma lista de texto menor que 1 MB');
+        const text = await file.text(); parseRoster(text);
+        document.getElementById('roster-text').value = text;
+        document.getElementById('student-mode').value = 'list';
+        document.getElementById('settings-error').textContent = 'Lista carregada. Clique em Salvar configurações para aplicar.';
+      } catch (error) { document.getElementById('settings-error').textContent = error.message; }
+      event.target.value = '';
+    });
+    this.app.review.bind();
+  }
+
+  _settingsMarkup() {
+    return `<dialog id="settings-dialog" aria-labelledby="settings-title">
+      <form id="settings-form">
+        <div class="settings-heading"><h2 id="settings-title">Configurações</h2><button type="button" id="close-settings" class="btn secondary" aria-label="Fechar configurações">✕</button></div>
+        <p>Os ajustes de leitura valem para o gabarito em edição. Gabaritos salvos mantêm sua calibração até você editá-los e salvar.</p>
+        <fieldset><legend>Grade e área de leitura</legend><div class="settings-grid">
+          <label>Questões<input id="template-rows" type="number" min="1" max="100" step="1" required></label>
+          <label>Alternativas<input id="template-cols" type="number" min="2" max="8" step="1" required></label>
+          <label>Formato<select id="mark-shape"><option value="circle">Bolha (círculo)</option><option value="square">Quadrado</option><option value="rectangle">Retângulo</option></select></label>
+          <label>Diâmetro / largura (pixels)<input id="mark-width" type="number" min="2" max="200" step="1" required></label>
+          <label>Altura do retângulo (pixels)<input id="mark-height" type="number" min="2" max="200" step="1" required></label>
+          <label>Limiar de leitura (0–255)<input id="mark-threshold" type="number" min="0" max="255" step="1" required></label>
+        </div><p>A área deve ficar dentro da marca impressa. Alterar a quantidade de questões ou alternativas refaz a grade e remove ajustes individuais.</p></fieldset>
+        <fieldset><legend>Números e contornos sobre a imagem</legend><div class="settings-grid">
+          <label>Cor do contorno<input id="annotation-color" type="color"></label>
+          <label>Cor dos números<input id="annotation-textColor" type="color"></label>
+          <label>Fundo dos números<input id="annotation-background" type="color"></label>
+          <label>Tamanho dos números (px na tela)<input id="annotation-fontSize" type="number" min="10" max="48" step="1" required></label>
+          <label>Fonte<select id="annotation-font"><option value="Arial">Arial</option><option value="Verdana">Verdana</option><option value="Georgia">Georgia</option><option value="monospace">Monoespaçada</option></select></label>
+          <label>Tipo de texto<select id="annotation-fontStyle"><option value="bold">Negrito</option><option value="normal">Normal</option><option value="italic">Itálico</option><option value="italic bold">Negrito e itálico</option></select></label>
+          <label>Tipo de contorno<select id="annotation-lineStyle"><option value="solid">Contínuo</option><option value="dashed">Tracejado</option></select></label>
+          <label>Espessura do contorno (px)<input id="annotation-lineWidth" type="number" min="1" max="6" step="1" required></label>
+          <label>Ampliação da imagem<select id="annotation-zoom"><option value="100">Ajustar à largura</option><option value="150">150%</option><option value="200">200%</option><option value="300">300%</option></select></label>
+        </div><p>Os números têm fundo sólido para contrastar com a impressão. A ampliação permite posicionar áreas pequenas com mais precisão.</p></fieldset>
+        <fieldset><legend>Alunos e confirmação da nota</legend><div class="settings-grid">
+          <label>Identificação do aluno<select id="student-mode"><option value="none">Sem identificação</option><option value="name">Digitar nome</option><option value="list">Selecionar de uma lista</option></select></label>
+          <label>Nota máxima<input id="grade-scale" type="number" min="1" max="100" step="1" required></label>
+        </div>
+        <label class="roster-label">Lista de alunos (um por linha)<textarea id="roster-text" rows="6" placeholder="Ana Silva&#10;2026002;Bruno Souza"></textarea></label>
+        <label>Carregar lista de texto (.txt)<input id="roster-file" type="file" accept=".txt,text/plain"></label>
+        <p>Use um nome por linha, ou matrícula;nome. Para alunos com o mesmo nome, informe matrículas distintas. A nota e a imagem só são salvas ao clicar em Aceitar.</p>
+        </fieldset>
+        <fieldset><legend>Pontuação</legend><div class="settings-grid">
+          <label>Pontos por acerto<input id="score-correct" type="number" min="0" step="0.5" required></label>
+          <label>Desconto por erro<input id="score-incorrect" type="number" min="0" step="0.5" required></label>
+          <label>Pontos em branco<input id="score-blank" type="number" min="0" step="0.5" required></label>
+        </div></fieldset>
+        <p id="settings-error" role="alert"></p>
+        <div class="settings-footer"><button type="submit" id="save-settings" class="btn primary">Salvar configurações</button></div>
+      </form>
+    </dialog>`;
+  }
+
+  _fillSettings() {
+    const c = this.config.get('calibration'), a = this.config.get('annotation'), scoring = this.config.get('scoring');
+    document.getElementById('student-mode').value = this.config.get('students.mode');
+    document.getElementById('roster-text').value = this.config.get('students.rosterText');
+    document.getElementById('grade-scale').value = this.config.get('review.gradeScale');
+    for (const [id, value] of Object.entries({ 'template-rows': c.rows, 'template-cols': c.cols, 'mark-shape': c.shape,
+      'mark-width': c.width, 'mark-height': c.height, 'mark-threshold': c.threshold,
+      'score-correct': scoring.correct, 'score-incorrect': scoring.incorrect, 'score-blank': scoring.blank })) {
+      document.getElementById(id).value = value;
+    }
+    for (const [key, value] of Object.entries(a)) document.getElementById(`annotation-${key}`).value = value;
+    document.getElementById('mark-height').disabled = c.shape !== 'rectangle';
+    document.getElementById('settings-error').textContent = '';
+  }
+
+  _saveSettings() {
+    const form = document.getElementById('settings-form');
+    if (!form.reportValidity()) return;
+    const number = id => Number(document.getElementById(id).value);
+    const value = id => document.getElementById(id).value;
+    const calibration = { rows: number('template-rows'), cols: number('template-cols'), shape: value('mark-shape'),
+      width: number('mark-width'), height: number('mark-height'), threshold: number('mark-threshold') };
+    const annotation = Object.fromEntries(Object.keys(this.config.get('annotation')).map(key =>
+      [key, ['fontSize', 'lineWidth', 'zoom'].includes(key) ? number(`annotation-${key}`) : value(`annotation-${key}`)]));
+    // Keep numeric labels legible against their solid background.
+    const luminance = hex => {
+      const rgb = hex.slice(1).match(/../g).map(n => parseInt(n, 16) / 255)
+        .map(n => n <= .04045 ? n / 12.92 : ((n + .055) / 1.055) ** 2.4);
+      return rgb[0] * .2126 + rgb[1] * .7152 + rgb[2] * .0722;
+    };
+    const foreground = luminance(annotation.textColor), background = luminance(annotation.background);
+    if ((Math.max(foreground, background) + .05) / (Math.min(foreground, background) + .05) < 4.5) {
+      document.getElementById('settings-error').textContent = 'Escolha cores com mais contraste entre números e fundo (por exemplo, branco sobre roxo escuro).';
+      return;
+    }
+    const students = { mode: value('student-mode'), rosterText: value('roster-text') };
+    try {
+      const roster = parseRoster(students.rosterText);
+      if (students.mode === 'list' && !roster.length) throw new Error('Cadastre pelo menos um aluno para usar a lista.');
+    } catch (error) { document.getElementById('settings-error').textContent = error.message; return; }
+    const previous = this.config.get('calibration');
+    if (calibration.rows !== previous.rows || calibration.cols !== previous.cols) {
+      this.positions = null; this.positionHistory = []; this.moveTarget = null;
+    }
+    this.config.update({ calibration, annotation, students, review: { gradeScale: number('grade-scale') }, scoring: { correct: number('score-correct'), incorrect: number('score-incorrect'), blank: number('score-blank') } });
+    document.getElementById('settings-dialog').close();
+    this._drawTemplate(); this._redrawExam(); this.app.review.settingsChanged();
+    this._showMessage('Configurações salvas', 'success');
+  }
+
+  async _loadImage(file) {
+    if (file.type && !file.type.startsWith('image/')) throw new Error('Selecione uma imagem PNG, JPEG ou WebP');
+    const url = URL.createObjectURL(file);
+    try {
+      const image = new Image();
+      await new Promise((resolve, reject) => {
+        image.onload = resolve;
+        image.onerror = () => reject(new Error('Não foi possível abrir a imagem. Converta para PNG ou JPEG.'));
+        image.src = url;
+      });
+      const scale = Math.min(1, 1800 / Math.max(image.naturalWidth, image.naturalHeight));
+      const canvas = document.createElement('canvas');
+      canvas.width = Math.max(1, Math.round(image.naturalWidth * scale));
+      canvas.height = Math.max(1, Math.round(image.naturalHeight * scale));
+      const ctx = canvas.getContext('2d');
+      ctx.fillStyle = 'white'; ctx.fillRect(0, 0, canvas.width, canvas.height);
+      ctx.drawImage(image, 0, 0, canvas.width, canvas.height);
+      return ctx.getImageData(0, 0, canvas.width, canvas.height);
+    } finally { URL.revokeObjectURL(url); }
+  }
+
+  async _openCamera(kind) {
+    if (this.app.review.saving) return;
+    if (kind === 'exam' && !this.app.currentTemplate) { this._showMessage('Aplique um gabarito primeiro', 'error'); return; }
+    const button = document.getElementById(`${kind}-camera`);
+    if (this.openingCamera) return;
+    this._closeCamera();
+    this.openingCamera = true;
+    button.disabled = true;
+    this.cameraTarget = kind;
+    const panel = document.getElementById('camera-panel');
+    panel.hidden = false;
+    try {
+      await this.app.camera.initialize(document.getElementById('camera-preview'));
+      if (kind === 'exam') this.app.review.cameraStarted();
+      panel.scrollIntoView({ block: 'center' });
+    } catch (error) { this._closeCamera(); this._showMessage(error.message, 'error'); }
+    finally { button.disabled = false; this.openingCamera = false; }
+  }
+
+  _closeCamera() {
+    this.app.camera.stop();
+    this.app.review.stop();
+    document.getElementById('camera-panel').hidden = true;
+  }
+
+  _editTemplate(image, template = null) {
+    this.templateImage = image;
+    this.editingTemplateId = template ? template.id : null;
+    this.corners = template ? [[template.layout.left, template.layout.top], [template.layout.right, template.layout.bottom]] : [];
+    this.positions = template?.layout.positions ? template.layout.positions.map(point => [...point]) : null;
+    this.positionHistory = [];
+    this.moveTarget = null;
+    document.getElementById('template-editor').hidden = false;
+    if (template) document.getElementById('template-name').value = template.description;
+    this._drawTemplate();
+  }
+
+  _layout() {
+    const { rows, cols } = this.config.get('calibration');
+    if (this.corners.length !== 2) throw new Error('Marque a primeira e a última área de resposta');
+    const [[left, top], [right, bottom]] = this.corners;
+    if (right <= left || (rows > 1 && bottom <= top)) throw new Error('Reposicione a última área à direita e abaixo da primeira');
+    return { rows, cols, left, top, right, bottom, ...(this.positions ? { positions: this.positions } : {}) };
+  }
+
+  _rememberPositions() {
+    this.positionHistory.push(JSON.parse(JSON.stringify({ corners: this.corners, positions: this.positions })));
+    if (this.positionHistory.length > 50) this.positionHistory.shift();
+  }
+
+  _positionClick(event) {
+    if (!this.templateImage) return;
+    const rect = event.target.getBoundingClientRect();
+    const x = (event.clientX - rect.left) * event.target.width / rect.width;
+    const y = (event.clientY - rect.top) * event.target.height / rect.height;
+    const point = [Math.max(0, Math.min(1, x / event.target.width)), Math.max(0, Math.min(1, y / event.target.height))];
+    if (this.moveTarget !== null && this.moveTarget !== undefined) {
+      this._rememberPositions();
+      if (this.moveTarget === 'first' || this.moveTarget === 'last') {
+        const index = this.moveTarget === 'first' ? 0 : 1;
+        if (index === 1 && !this.corners.length) { this._showMessage('Marque a primeira área antes da última', 'info'); return; }
+        this.corners[index] = point; this.positions = null;
+      } else {
+        this._ensurePositions(); this.positions[this.moveTarget] = point;
+      }
+      this.moveTarget = null;
+    } else if (this.corners.length < 2) {
+      this._rememberPositions(); this.corners.push(point);
+    } else {
+      const hit = this.hitAreas?.find(area => x >= area.left && x <= area.right && y >= area.top && y <= area.bottom);
+      if (hit) this.moveTarget = hit.index;
+    }
+    this._drawTemplate();
+  }
+
+  _ensurePositions() {
+    if (!this.positions) this.positions = this.app.omr.detectBubbles(this.templateImage, this._layout())
+      .map(([x, y]) => [x / this.templateImage.width, y / this.templateImage.height]);
+  }
+
+  _positionKey(event) {
+    if (event.key === 'Escape') { this.moveTarget = null; this._drawTemplate(); return; }
+    const delta = { ArrowLeft: [-1, 0], ArrowRight: [1, 0], ArrowUp: [0, -1], ArrowDown: [0, 1] }[event.key];
+    if (!delta || !Number.isInteger(this.moveTarget)) return;
+    event.preventDefault(); this._rememberPositions(); this._ensurePositions();
+    const point = this.positions[this.moveTarget];
+    const step = event.shiftKey ? 10 : 1;
+    point[0] = Math.max(0, Math.min(1, point[0] + delta[0] * step / this.templateImage.width));
+    point[1] = Math.max(0, Math.min(1, point[1] + delta[1] * step / this.templateImage.height));
+    this._drawTemplate();
+  }
+
+  _region(image = this.templateImage) {
+    const c = this.config.get('calibration');
+    return { shape: c.shape, width: c.width / image.width, height: (c.shape === 'rectangle' ? c.height : c.width) / image.height };
+  }
+
+  _drawPositions(canvas, layout, region, positionsOverride = null) {
+    const ctx = canvas.getContext('2d');
+    const positions = positionsOverride || this.app.omr.detectBubbles(canvas, layout);
+    const style = this.config.get('annotation');
+    const scale = canvas.width / canvas.getBoundingClientRect().width;
+    const fontSize = style.fontSize * scale;
+    const w = region.width * canvas.width, h = region.height * canvas.height;
+    ctx.font = `${style.fontStyle} ${fontSize}px ${style.font}`;
+    ctx.textBaseline = 'middle'; ctx.textAlign = 'center';
+    const hits = [];
+    positions.forEach(([x, y], index) => {
+      const number = index + 1;
+      const selected = canvas.id === 'template-preview' && this.moveTarget === index;
+      ctx.setLineDash(style.lineStyle === 'dashed' ? [6 * scale, 4 * scale] : []);
+      ctx.lineWidth = (style.lineWidth + (selected ? 2 : 0)) * scale;
+      ctx.strokeStyle = style.color;
+      ctx.beginPath();
+      if (region.shape === 'circle') ctx.ellipse(x, y, w / 2, h / 2, 0, 0, Math.PI * 2);
+      else ctx.rect(x - w / 2, y - h / 2, w, h);
+      ctx.stroke(); ctx.setLineDash([]);
+      const labelWidth = ctx.measureText(String(number)).width + 10 * scale;
+      const labelHeight = fontSize + 6 * scale;
+      const left = Math.max(0, Math.min(canvas.width - labelWidth, x - labelWidth / 2));
+      const top = Math.max(0, Math.min(canvas.height - labelHeight, y - h / 2 - labelHeight - 4 * scale));
+      ctx.fillStyle = style.background; ctx.fillRect(left, top, labelWidth, labelHeight);
+      ctx.strokeStyle = selected ? '#ffd600' : '#ffffff'; ctx.lineWidth = 2 * scale;
+      ctx.strokeRect(left, top, labelWidth, labelHeight);
+      ctx.fillStyle = style.textColor; ctx.fillText(String(number), left + labelWidth / 2, top + labelHeight / 2);
+      // The number and a generous target around the shape are clickable, including on touch screens.
+      hits.push({ index, left, top, right: left + labelWidth, bottom: top + labelHeight });
+      hits.push({ index, left: x - Math.max(w / 2, 14 * scale), right: x + Math.max(w / 2, 14 * scale),
+        top: y - Math.max(h / 2, 14 * scale), bottom: y + Math.max(h / 2, 14 * scale) });
+    });
+    if (canvas.id === 'template-preview') this.hitAreas = hits;
+  }
+
+  _sizeCanvas(canvas) {
+    const available = canvas.parentElement.clientWidth;
+    canvas.style.width = `${Math.max(1, available) * this.config.get('annotation.zoom') / 100}px`;
+  }
+
+  _drawTemplate() {
+    if (!this.templateImage) return;
+    const canvas = document.getElementById('template-preview');
+    canvas.width = this.templateImage.width; canvas.height = this.templateImage.height;
+    this._sizeCanvas(canvas);
+    canvas.getContext('2d').putImageData(this.templateImage, 0, 0);
+    const c = this.config.get('calibration');
+    const shapeName = { circle: 'círculo', square: 'quadrado', rectangle: 'retângulo' }[c.shape];
+    document.getElementById('calibration-summary').textContent = `${c.rows} questões × ${c.cols} alternativas · ${shapeName} · Ajustes na engrenagem`;
+    const instruction = document.getElementById('calibration-instruction');
+    instruction.textContent = this.moveTarget === 'first' ? 'Clique no novo centro da primeira área. A grade será recalculada.' :
+      this.moveTarget === 'last' ? 'Clique no novo centro da última área. A grade será recalculada.' :
+      Number.isInteger(this.moveTarget) ? `Área ${this.moveTarget + 1} selecionada: clique no novo centro ou use as setas.` :
+      this.corners.length === 0 ? 'Passo 1 de 2 — Clique no centro da PRIMEIRA área (questão 1, alternativa A).' :
+      this.corners.length === 1 ? `Primeira área marcada com o número 1. Passo 2 de 2 — Clique na ÚLTIMA área (questão ${c.rows}, alternativa ${String.fromCharCode(64 + c.cols)}).` :
+      'Grade pronta — Confira os números. Clique em um número para corrigir sua posição.';
+    const text = document.getElementById('template-answers'); text.textContent = '';
+    this.templateAnalysis = null; this.hitAreas = [];
+    const region = this._region();
+    if (this.corners.length === 1) this._drawPositions(canvas, null, region,
+      [[this.corners[0][0] * canvas.width, this.corners[0][1] * canvas.height]]);
+    const list = document.getElementById('position-list'); list.replaceChildren();
+    try {
+      const layout = this._layout();
+      Object.assign(this.app.omr.options, { optionsPerQuestion: layout.cols, threshold: c.threshold,
+        sampleShape: region.shape, sampleWidth: region.width * canvas.width, sampleHeight: region.height * canvas.height });
+      const positions = this.app.omr.detectBubbles(this.templateImage, layout);
+      const answers = this.app.omr.processOMR(this.templateImage, positions, layout.rows);
+      this._drawPositions(canvas, layout, region);
+      positions.forEach((_, index) => {
+        const button = document.createElement('button'); button.type = 'button';
+        button.className = 'position-chip'; button.textContent = `${index + 1} · Q${Math.floor(index / layout.cols) + 1}${String.fromCharCode(65 + index % layout.cols)}`;
+        button.setAttribute('aria-pressed', String(this.moveTarget === index));
+        button.addEventListener('click', () => { this.moveTarget = index; this._drawTemplate(); canvas.focus({ preventScroll: true }); });
+        list.appendChild(button);
+      });
+      text.textContent = answers.map((a, i) => `${i + 1}: ${a >= 0 ? String.fromCharCode(65 + a) : a === -2 ? 'múltipla' : 'em branco'}`).join(' · ');
+      if (answers.some(a => a < 0)) throw new Error('Há questões em branco ou ambíguas. Corrija as posições ou ajuste a área de leitura na engrenagem.');
+      this.templateAnalysis = { layout, answers, region, imageSize: { width: canvas.width, height: canvas.height }, threshold: c.threshold, radius: region.width / 2 };
+    } catch (error) { if (this.corners.length === 2) text.textContent += ` — ${error.message}`; }
+    document.getElementById('save-template').disabled = !this.templateAnalysis;
+    document.getElementById('save-template').textContent = this.editingTemplateId ? 'Salvar alterações do gabarito' : 'Salvar Gabarito';
+    document.getElementById('undo-position').disabled = !this.positionHistory.length;
+    document.getElementById('move-last').disabled = !this.corners.length;
+  }
+
+  _redrawExam() {
+    const image = this.app.currentImageData, template = this.app.currentTemplate;
+    const canvas = document.getElementById('exam-preview');
+    if (!image || !template || canvas.hidden) return;
+    this._sizeCanvas(canvas);
+    canvas.getContext('2d').putImageData(image, 0, 0);
+    this._drawPositions(canvas, template.layout, template.region || { shape: 'circle', width: template.radius * 2, height: template.radius * 2 * image.width / image.height });
+  }
+
+  async _editSavedTemplate() {
+    const id = document.getElementById('template-select').value;
+    if (!id) { this._showMessage('Selecione um gabarito para editar', 'info'); return; }
+    try {
+      const template = await this.app.template.getTemplate(id);
+      if (!template.url) throw new Error('Este gabarito antigo não guardou a imagem. Selecione a imagem original para cadastrá-lo novamente.');
+      const image = new Image();
+      await new Promise((resolve, reject) => { image.onload = resolve; image.onerror = () => reject(new Error('Não foi possível abrir a imagem salva')); image.src = template.url; });
+      const canvas = document.createElement('canvas'); canvas.width = image.naturalWidth; canvas.height = image.naturalHeight;
+      const ctx = canvas.getContext('2d'); ctx.drawImage(image, 0, 0);
+      const region = template.region || { shape: 'circle', width: template.radius * 2, height: template.radius * 2 * canvas.width / canvas.height };
+      this.config.update({ calibration: { rows: template.layout.rows, cols: template.layout.cols, shape: region.shape,
+        width: Math.round(region.width * canvas.width), height: Math.round(region.height * canvas.height), threshold: template.threshold ?? 128 } });
+      this._editTemplate(ctx.getImageData(0, 0, canvas.width, canvas.height), template);
+      document.getElementById('template-editor').scrollIntoView({ block: 'start' });
+    } catch (error) { this._showMessage(error.message, 'error'); }
+  }
+
+  async _saveTemplate() {
+    if (!this.templateAnalysis) return;
+    const name = document.getElementById('template-name').value.trim();
+    if (!name) { this._showMessage('Dê um nome ao gabarito', 'error'); return; }
+    try {
+      const id = this.editingTemplateId || `template-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+      const original = document.createElement('canvas'); original.width = this.templateImage.width; original.height = this.templateImage.height;
+      original.getContext('2d').putImageData(this.templateImage, 0, 0);
+      await this.app.template.registerTemplate(id, original.toDataURL('image/png'), name, this.templateAnalysis);
+      this.editingTemplateId = id;
+      this._drawTemplate();
+      await this.app._loadTemplates();
+      document.getElementById('template-select').value = id;
+      await this._applyTemplate();
+    } catch (error) { this._showMessage(`Erro ao salvar: ${error.message}`, 'error'); }
   }
 
   /**
@@ -127,7 +517,11 @@ export class UI {
     }
     
     try {
+      this._closeCamera(); this.app.review.invalidate();
       await this.app.scanner.initializeWithTemplate(templateId);
+      document.getElementById('exam-preview').hidden = true;
+      document.getElementById('results-panel').replaceChildren();
+      document.getElementById('scan-status').textContent = 'Gabarito aplicado. Pronto para ler provas.';
       this._showMessage('Gabarito aplicado com sucesso', 'success');
       this._renderResultsPreview();
     } catch (error) {
@@ -136,59 +530,16 @@ export class UI {
   }
 
   /**
-   * Salva as regras de pontuação
-   */
-  _saveScoring() {
-    const rules = {
-      correct: parseFloat(document.getElementById('score-correct').value) || 0,
-      incorrect: parseFloat(document.getElementById('score-incorrect').value) || 0,
-      blank: parseFloat(document.getElementById('score-blank').value) || 0
-    };
-    
-    this.config.setScoringRules(rules);
-    this._showMessage('Regras de pontuação salvas', 'success');
-  }
-
-  /**
-   * Valida o valor de cada input de pontuação
-   * @param {string} id - ID do input
-   */
-  _validateScoreInput(id) {
-    const input = document.getElementById(id);
-    const value = parseFloat(input.value);
-    
-    if (isNaN(value) || value < 0) {
-      input.value = '0';
-      input.classList.add('invalid');
-    } else {
-      input.classList.remove('invalid');
-    }
-  }
-
-  /**
    * Inicia o processo de leitura da prova
    */
-  async _startScan() {
-    if (!this.app.scanner.currentExam) {
-      this._showMessage('Nenhum gabarito aplicado', 'error');
+  async _startScan(image = null) {
+    if (!image && this.cameraTarget === 'template') {
+      try { this._editTemplate(this.app.camera.captureFrame()); this._closeCamera(); }
+      catch (error) { this._showMessage(error.message, 'error'); }
       return;
     }
-    
-    const status = document.getElementById('scan-status');
-    const resultsPanel = document.getElementById('results-panel');
-    resultsPanel.innerHTML = '';
-    status.innerHTML = '<div class="scan-spinner"></div><p>Processando imagem...</p>';
-    
-    try {
-      const { answers } = await this.app.scanner.captureAndProcess();
-      const score = this.app.scanner.calculateScore();
-      this.app.scanner.saveResult();
-      
-      this._renderResults(score, answers);
-      status.innerHTML = '<p class="scan-complete">Leitura concluída com sucesso!</p>';
-    } catch (error) {
-      status.innerHTML = `<p class="scan-error">Erro na leitura: ${error.message}</p>`;
-    }
+    if (image) await this.app.review.readUpload(image);
+    else this.app.review.freeze();
   }
 
   /**
@@ -214,7 +565,8 @@ export class UI {
           <div><span class="dot correct"></span>Acertos: ${correct}</div>
           <div><span class="dot incorrect"></span>Erros: ${incorrect}</div>
           <div><span class="dot blank"></span>Em Branco: ${blank}</div>
-          <div>Nota: ${score.score} / ${score.total}</div>
+          <div>Pontos: ${score.score} / ${score.total}</div>
+          <div>Nota: ${(Math.round(score.percentage * this.config.get('review.gradeScale')) / 100).toLocaleString('pt-BR')} / ${this.config.get('review.gradeScale')}</div>
         </div>
       </div>
       <div class="answer-details">
@@ -254,11 +606,12 @@ export class UI {
     }
     
     toast.textContent = message;
-    toast.className = `toast ${type}`;
+    toast.className = `toast ${type} show`;
+    clearTimeout(this.toastTimer);
     
-    setTimeout(() => {
+    this.toastTimer = setTimeout(() => {
       toast.classList.remove('show');
-      setTimeout(() => toast.remove(), 300);
+
     }, 3000);
   }
 }
