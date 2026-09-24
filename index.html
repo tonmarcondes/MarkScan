@@ -1,0 +1,94 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>MarkScan OMR - Correção Automática de Provas</title>
+  <link rel="stylesheet" href="css/styles.css">
+  <link rel="manifest" href="manifest.json">
+</head>
+<body>
+  <div id="app-root">
+    <!-- Header -->
+    <header id="app-header">
+      <div class="header-inner">
+        <div class="logo">MarkScan</div>
+        <div class="header-actions">
+          <span class="status-badge" id="status-badge">Offline Ready</span>
+        </div>
+      </div>
+    </header>
+
+    <!-- Main Content -->
+    <main id="app-main">
+      <!-- Step 1: Selecionar Gabarito -->
+      <section class="step-card" id="step1">
+        <h3>1. Selecionar Gabarito</h3>
+        <p>Escolha o modelo de correção que será usado</p>
+        <select id="template-select" class="select-field">
+          <option value="">-- Selecione um gabarito --</option>
+        </select>
+        <button id="btn-apply-template" class="btn primary">Aplicar Gabarito</button>
+      </section>
+
+      <!-- Step 2: Configurar Pontuação -->
+      <section class="step-card" id="step2">
+        <h3>2. Configurar Pontuação</h3>
+        <div class="score-grid">
+          <div>
+            <label for="score-correct">Acerto</label>
+            <input type="number" id="score-correct" placeholder="ex: 1" min="0" step="0.5">
+          </div>
+          <div>
+            <label for="score-incorrect">Erro</label>
+            <input type="number" id="score-incorrect" placeholder="ex: 0" min="0" step="0.5">
+          </div>
+          <div>
+            <label for="score-blank">Em Branco</label>
+            <input type="number" id="score-blank" placeholder="ex: 0" min="0" step="0.5">
+          </div>
+        </div>
+        <button id="btn-save-score" class="btn secondary">Salvar Pontuação</button>
+      </section>
+
+      <!-- Step 3: Ler Prova -->
+      <section class="step-card" id="step3">
+        <h3>3. Ler Prova</h3>
+        <p>Leia a prova do aluno para correção automática</p>
+        <button id="btn-scan" class="btn danger">Iniciar Leitura</button>
+        <div id="scan-status" class="scan-status">
+          <div class="scan-spinner"></div>
+          <p>Processando imagem...</p>
+        </div>
+        <div id="results-panel" class="results-panel">
+          <p>Resultados aparecerão aqui</p>
+        </div>
+      </section>
+    </main>
+
+    <!-- Footer / Info -->
+    <footer id="app-footer">
+      <p>MarkScan OMR - Sistema de Correção Automática de Provas</p>
+      <p>Desenvolvido para uso offline e em ambientes sem internet</p>
+    </footer>
+  </div>
+
+  <!-- Service Worker Registration -->
+  <script>
+    if ('serviceWorker' in navigator) {
+      window.addEventListener('load', () => {
+        navigator.serviceWorker.register('sw.js')
+          .then(registration => {
+            console.log('ServiceWorker registration successful with scope: ', registration.scope);
+          })
+          .catch(error => {
+            console.log('ServiceWorker registration failed: ', error);
+          });
+      });
+    }
+  </script>
+
+  <!-- Module imports -->
+  <script type="module" src="js/app.js"></script>
+</body>
+</html>
