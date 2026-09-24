@@ -19,6 +19,8 @@ import Config from './modules/Config.js';
 import UI from './modules/UI.js';
 import Scanner from './modules/Scanner.js';
 import ExamReview from './modules/ExamReview.js';
+import Alignment from './modules/Alignment.js';
+import SheetBuilder from './modules/SheetBuilder.js';
 
 class App {
   constructor() {
@@ -30,6 +32,8 @@ class App {
     this.scanner = new Scanner(this);
     this.ui = new UI(this, this.config);
     this.review = new ExamReview(this, this.ui);
+    this.alignment = new Alignment();
+    this.sheetBuilder = new SheetBuilder(this, this.ui);
     
     this.currentTemplate = null;
     this.examInProgress = false;

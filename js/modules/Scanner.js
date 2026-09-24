@@ -11,9 +11,11 @@ export default class Scanner {
   }
   async processImage(image) {
     if (!this.currentExam) throw new Error('Aplique um gabarito primeiro');
-    this.app.currentImageData = image;
-    this.app.studentAnswers = await this.app.processOMR(image);
-    return { answers: this.app.studentAnswers };
+    const aligned = this.app.currentTemplate.alignment ? this.app.alignment.align(image, this.app.currentTemplate.alignment) : null;
+    const normalized = aligned ? aligned.image : image;
+    this.app.currentImageData = normalized;
+    this.app.studentAnswers = await this.app.processOMR(normalized);
+    return { answers: this.app.studentAnswers, image: normalized, alignment: aligned?.metadata || null };
   }
   calculateScore() { return this.app.calculateScore(); }
 }

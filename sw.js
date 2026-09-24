@@ -1,6 +1,6 @@
-const CACHE_NAME = 'omr-scanner-v1.1.0';
-const ASSETS = ['./', './index.html', './manifest.json', './css/styles.css', './js/app.js',
-  ...['Camera', 'Template', 'OMREngine', 'Scanner', 'Config', 'Storage', 'UI', 'ExamReview', 'Evidence', 'Roster'].map(name => `./js/modules/${name}.js`)];
+const CACHE_NAME = 'omr-scanner-v1.2.0';
+const ASSETS = ['./js/vendor/cv.js', './js/vendor/aruco.js', './', './index.html', './manifest.json', './css/styles.css', './js/app.js',
+  ...['Camera', 'Template', 'OMREngine', 'Scanner', 'Config', 'Storage', 'UI', 'ExamReview', 'Evidence', 'Roster', 'Alignment', 'SheetBuilder'].map(name => `./js/modules/${name}.js`)];
 self.addEventListener('install', event => {
   event.waitUntil(caches.open(CACHE_NAME).then(cache => cache.addAll(ASSETS)).then(() => self.skipWaiting()));
 });

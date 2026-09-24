@@ -1,3 +1,4 @@
+import { project } from './Alignment.js';
 import { parseRoster } from './Roster.js';
 import { createEvidence } from './Evidence.js';
 
@@ -110,7 +111,7 @@ export default class ExamReview {
 
   cameraStarted() {
     this.invalidate(); this.live = true;
-    const dimensions = this.app.currentTemplate.imageSize || this.app.camera.dimensions;
+    const dimensions = this.app.currentTemplate.alignment ? this.app.camera.dimensions : (this.app.currentTemplate.imageSize || this.app.camera.dimensions);
     this.aspectRatio = dimensions.width / dimensions.height;
     document.getElementById('camera-stage').style.aspectRatio = String(this.aspectRatio);
     document.getElementById('camera-stage').style.setProperty('--camera-aspect', this.aspectRatio);
@@ -120,7 +121,7 @@ export default class ExamReview {
     document.getElementById('live-hud').hidden = false;
     document.getElementById('exam-preview').hidden = true;
     document.getElementById('results-panel').replaceChildren();
-    document.getElementById('scan-status').textContent = 'Alinhe a folha aos contornos. A nota só será registrada ao aceitar.';
+    document.getElementById('scan-status').textContent = this.app.currentTemplate.alignment ? 'Mostre os quatro cantos. A folha será alinhada automaticamente antes da leitura.' : 'Alinhe a folha aos contornos. A nota só será registrada ao aceitar.';
     this.drawGuide(); this.updateActions(); this.tick(this.generation);
   }
 
@@ -137,11 +138,11 @@ export default class ExamReview {
 
   async analyze(image, source) {
     const capturedAt = new Date().toISOString();
-    const { answers } = await this.app.scanner.processImage(image);
+    const { answers, image: normalized, alignment } = await this.app.scanner.processImage(image);
     const score = this.app.calculateScore();
     const { url, ...template } = this.app.currentTemplate;
     const gradeScale = this.app.config.get('review.gradeScale');
-    return { image, source, capturedAt, answers: [...answers], score: copy(score),
+    return { image: normalized, original: alignment ? image : null, alignment, source, capturedAt, answers: [...answers], score: copy(score),
       grade: Math.round(score.percentage * gradeScale) / 100, gradeScale,
       template: copy(template), scoringRules: copy(this.app.config.get('scoring')) };
   }
@@ -149,7 +150,7 @@ export default class ExamReview {
   async tick(generation) {
     if (!this.live || generation !== this.generation || this.pending || this.saved || this.saving) return;
     try {
-      if (!document.hidden && !document.getElementById('settings-dialog').open) {
+      if (!document.hidden && !document.getElementById('settings-dialog').open && !document.getElementById('sheet-dialog').open && !document.getElementById('print-sheet-dialog').open) {
         if (!this.app.camera.isActive) throw new Error('Câmera desconectada. Feche e abra a câmera novamente.');
         const image = this.app.camera.captureFrame({ aspectRatio: this.aspectRatio, maxDimension: 1280 });
         const candidate = await this.analyze(image, 'camera');
@@ -160,6 +161,7 @@ export default class ExamReview {
         candidate.ready = this.stableCount >= 3;
         candidate.observedAt = performance.now();
         this.candidate = candidate;
+        this.drawGuide();
         const blank = candidate.answers.every(answer => answer === -1);
         const ambiguous = candidate.answers.includes(-2);
         this.hud(candidate, !candidate.ready ? 'Estabilizando leitura…' : blank ? 'Nenhuma marca detectada. Confira o enquadramento ou a prova em branco.' : ambiguous ? 'Há marcações múltiplas. Confira antes de aceitar.' : 'Leitura estável · confira e aceite.');
@@ -167,7 +169,7 @@ export default class ExamReview {
       }
     } catch (error) {
       this.candidate = null; this.stableCount = 0; this.signature = '';
-      this.hud(null, error.message); this.updateActions();
+      this.hud(null, error.message); this.drawGuide(); this.updateActions();
     }
     if (this.live && generation === this.generation && !this.pending && !this.saved) this.timer = setTimeout(() => this.tick(generation), 300);
   }
@@ -175,7 +177,7 @@ export default class ExamReview {
   hud(candidate, message) {
     document.getElementById('live-grade').textContent = candidate ? `Nota ${format(candidate.grade)} / ${format(candidate.gradeScale)}` : 'Enquadre a prova';
     document.getElementById('live-points').textContent = candidate ? `${format(candidate.score.score)} / ${format(candidate.score.total)} pontos` : '';
-    document.getElementById('live-state').textContent = message;
+    document.getElementById('live-state').textContent = candidate?.alignment ? `Folha alinhada (${candidate.alignment.rotation}°) · ${message}` : message;
   }
 
   drawGuide() {
@@ -184,12 +186,33 @@ export default class ExamReview {
     if (!template || !this.live) return;
     canvas.width = Math.max(1, stage.clientWidth); canvas.height = Math.max(1, stage.clientHeight);
     const region = template.region || { shape: 'circle', width: template.radius * 2, height: template.radius * 2 * canvas.width / canvas.height };
-    this.ui._drawPositions(canvas, template.layout, region);
+    if (!template.alignment) { this.ui._drawPositions(canvas, template.layout, region); return; }
+    const metadata = this.candidate?.alignment;
+    if (!metadata) return;
+    const ctx = canvas.getContext('2d');
+    const map = (x, y) => { const point = project(metadata.matrix, x, y); return [point[0] * canvas.width, point[1] * canvas.height]; };
+    ctx.strokeStyle = '#00e59b'; ctx.lineWidth = 2;
+    ctx.beginPath(); metadata.quad.forEach(([x, y], index) => index ? ctx.lineTo(x * canvas.width, y * canvas.height) : ctx.moveTo(x * canvas.width, y * canvas.height)); ctx.closePath(); ctx.stroke();
+    const size = template.imageSize;
+    const points = this.app.omr.detectBubbles(size, template.layout);
+    for (const [px, py] of points) {
+      const nx = px / size.width, ny = py / size.height;
+      const count = region.shape === 'circle' ? 16 : 4;
+      ctx.beginPath();
+      for (let i = 0; i < count; i++) {
+        const offset = count === 4 ? [[-1, -1], [1, -1], [1, 1], [-1, 1]][i] : [Math.cos(i * Math.PI * 2 / count), Math.sin(i * Math.PI * 2 / count)];
+        const point = map(nx + offset[0] * region.width / 2, ny + offset[1] * region.height / 2);
+        if (!i) ctx.moveTo(...point); else ctx.lineTo(...point);
+      }
+      ctx.closePath(); ctx.stroke();
+    }
   }
 
   async readUpload(image) {
     if (this.saving) return;
     this.ui._closeCamera(); this.invalidate();
+    document.getElementById('exam-preview').hidden = true;
+    document.getElementById('results-panel').replaceChildren();
     const generation = this.generation;
     try {
       document.getElementById('scan-status').textContent = 'Processando imagem…';
@@ -242,10 +265,10 @@ export default class ExamReview {
       templateDescription: candidate.template.description, student: copy(student), capturedAt: candidate.capturedAt,
       acceptedAt: new Date().toISOString(), timestamp: new Date().toISOString(), source: candidate.source,
       answers: [...candidate.answers], score: copy(candidate.score), grade: candidate.grade, gradeScale: candidate.gradeScale,
-      scoringRules: candidate.scoringRules, templateSnapshot: candidate.template, hasEvidence: true };
+      alignment: candidate.alignment, scoringRules: candidate.scoringRules, templateSnapshot: candidate.template, hasEvidence: true };
     candidate.id = record.id;
     try {
-      const evidence = createEvidence(candidate.image, record);
+      const evidence = createEvidence(candidate.image, record, candidate.original);
       await this.app.storage.saveAcceptedResult(record, evidence);
       this.saved = record;
       this.hud(candidate, 'Nota e evidência salvas. Toque em Próxima prova.');
@@ -260,7 +283,7 @@ export default class ExamReview {
   }
 
   lockControls(locked) {
-    const ids = ['student-name', 'student-select', 'open-settings', 'btn-apply-template', 'edit-template', 'save-template', 'exam-file', 'template-file', 'exam-camera', 'template-camera', 'stop-camera'];
+    const ids = ['student-name', 'student-select', 'open-settings', 'btn-apply-template', 'edit-template', 'save-template', 'exam-file', 'template-file', 'exam-camera', 'template-camera', 'stop-camera', 'new-sheet', 'show-sheets'];
     if (locked) this.disabledControls = new Map(ids.map(id => [id, document.getElementById(id).disabled]));
     for (const id of ids) document.getElementById(id).disabled = locked || (this.disabledControls?.get(id) ?? false);
   }

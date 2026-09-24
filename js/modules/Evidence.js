@@ -1,5 +1,5 @@
 /** A review receipt rendered from the exact accepted frame, not the next video frame. */
-export function createEvidence(image, record) {
+export function createEvidence(image, record, original = null) {
   const width = Math.max(900, image.width);
   const scale = width / image.width;
   const pictureHeight = Math.round(image.height * scale);
@@ -7,7 +7,7 @@ export function createEvidence(image, record) {
   const detailHeight = Math.ceil(record.score.details.length / columns) * rowHeight;
   const headerHeight = 210, footerHeight = detailHeight + 80;
   const canvas = document.createElement('canvas');
-  canvas.width = width; canvas.height = headerHeight + pictureHeight + footerHeight;
+  canvas.width = width; canvas.height = headerHeight + pictureHeight + footerHeight + (original ? Math.round(original.height * width / original.width) + 50 : 0);
   const ctx = canvas.getContext('2d');
   ctx.fillStyle = 'white'; ctx.fillRect(0, 0, canvas.width, canvas.height);
   ctx.fillStyle = '#18243a'; ctx.font = 'bold 26px Arial';
@@ -32,5 +32,13 @@ export function createEvidence(image, record) {
     const y = baseY + 32 + Math.floor(i / columns) * rowHeight;
     ctx.fillText(`${detail.question}: ${detail.studentAnswer || '—'} / ${detail.correctAnswer} · ${detail.points} pts`, x, y);
   });
+  if (original) {
+    const originalY = headerHeight + pictureHeight + footerHeight;
+    ctx.fillStyle = '#18243a'; ctx.font = 'bold 18px Arial';
+    ctx.fillText('Quadro original da câmera / arquivo, antes do alinhamento', 24, originalY + 30);
+    const raw = document.createElement('canvas'); raw.width = original.width; raw.height = original.height;
+    raw.getContext('2d').putImageData(original, 0, 0);
+    ctx.drawImage(raw, 0, originalY + 50, width, original.height * width / original.width);
+  }
   return canvas.toDataURL('image/jpeg', .92);
 }

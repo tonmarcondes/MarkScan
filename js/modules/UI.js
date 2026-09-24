@@ -55,6 +55,8 @@ export class UI {
       <div class="workflow">
         <section class="step-card" id="step1">
           <h3>1. Cadastrar e selecionar gabarito</h3>
+          <div class="review-actions"><button id="new-sheet" class="btn primary">Criar folha com referências</button><button id="show-sheets" class="btn secondary">Imprimir / baixar folhas</button></div>
+          <p>Novas folhas com quatro referências são alinhadas automaticamente. Modelos antigos sem referências continuam disponíveis com calibração manual.</p>
           <label>Selecionar imagem do gabarito <input id="template-file" type="file" accept="image/*"></label>
           <button id="template-camera" class="btn secondary">Fotografar gabarito</button>
           <div id="template-editor" hidden>
@@ -85,13 +87,14 @@ export class UI {
         <section class="step-card" id="step3">
           <h3>2. Ler Prova</h3>
           <p>Leia a prova do aluno para correção automática</p>
-          <p>Use o mesmo formulário, enquadramento e alinhamento do gabarito. A leitura não corrige perspectiva nem rotação.</p>
+          <p>Folhas com referências: inclua os quatro cantos na câmera. O app corrige posição, rotação e perspectiva. Modelos antigos exigem o mesmo enquadramento do gabarito.</p>
           <label>Selecionar imagem da prova <input id="exam-file" type="file" accept="image/*"></label>
           <button id="exam-camera" class="btn secondary">Abrir câmera para prova</button>
           ${this.app.review.markup()}
         </section>
       </div>
       ${this._settingsMarkup()}
+      ${this.app.sheetBuilder.markup()}
     `;
   }
 
@@ -161,6 +164,7 @@ export class UI {
       event.target.value = '';
     });
     this.app.review.bind();
+    this.app.sheetBuilder.bind();
   }
 
   _settingsMarkup() {
@@ -475,6 +479,7 @@ export class UI {
     if (!id) { this._showMessage('Selecione um gabarito para editar', 'info'); return; }
     try {
       const template = await this.app.template.getTemplate(id);
+      if (template.generated) { this.app.sheetBuilder.edit(template); return; }
       if (!template.url) throw new Error('Este gabarito antigo não guardou a imagem. Selecione a imagem original para cadastrá-lo novamente.');
       const image = new Image();
       await new Promise((resolve, reject) => { image.onload = resolve; image.onerror = () => reject(new Error('Não foi possível abrir a imagem salva')); image.src = template.url; });
@@ -521,7 +526,7 @@ export class UI {
       await this.app.scanner.initializeWithTemplate(templateId);
       document.getElementById('exam-preview').hidden = true;
       document.getElementById('results-panel').replaceChildren();
-      document.getElementById('scan-status').textContent = 'Gabarito aplicado. Pronto para ler provas.';
+      document.getElementById('scan-status').textContent = this.app.currentTemplate.alignment ? 'Alinhamento automático ativo: mostre as quatro marcas da folha.' : 'Gabarito manual aplicado: mantenha o mesmo enquadramento.';
       this._showMessage('Gabarito aplicado com sucesso', 'success');
       this._renderResultsPreview();
     } catch (error) {
