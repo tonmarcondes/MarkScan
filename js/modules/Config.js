@@ -29,7 +29,7 @@ export class Config {
       },
       students: { mode: 'name', rosterText: '' },
       review: { gradeScale: 10 },
-      calibration: { rows: 10, cols: 4, shape: 'circle', width: 10, height: 10, threshold: 128 },
+      calibration: { referenceThickness: 5, rows: 10, cols: 4, shape: 'circle', width: 10, height: 10, threshold: 128 },
       annotation: { color: '#e6007e', textColor: '#ffffff', background: '#65104a', fontSize: 16,
         font: 'Arial', fontStyle: 'bold', lineStyle: 'solid', lineWidth: 2, zoom: 100 },
       ui: {
@@ -66,7 +66,7 @@ export class Config {
     try {
       localStorage.setItem('omr-config', JSON.stringify(this.config));
     } catch (error) {
-      console.error('Erro ao salvar configurações:', error);
+      throw new Error('Não foi possível salvar as configurações neste navegador. Verifique o espaço e as permissões de armazenamento.');
     }
   }
 
@@ -75,11 +75,12 @@ export class Config {
    * @param {Object} updates - Atualizações a aplicar
    */
   update(updates) {
+    const previous = JSON.parse(JSON.stringify(this.config));
     for (const [key, value] of Object.entries(updates)) {
       this.config[key] = value && typeof value === 'object'
         ? { ...this.config[key], ...value } : value;
     }
-    this._saveConfig();
+    try { this._saveConfig(); } catch (error) { this.config = previous; throw error; }
   }
 
   /**

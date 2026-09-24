@@ -55,7 +55,7 @@ class App {
       // A câmera é aberta pelo usuário, sem bloquear uploads.
       
       // Atualiza interface com estado salvo
-      this._restoreState();
+      await this._restoreState();
       
       // Inicializa service worker para PWA
       await this._registerServiceWorker();
@@ -105,7 +105,7 @@ class App {
   /**
    * Restaura o estado salvo
    */
-  _restoreState() {
+  async _restoreState() {
     // Carrega regras de pontuação salvas
     const scoringRules = this.config.get('scoring');
     if (scoringRules) {
@@ -120,6 +120,7 @@ class App {
       const select = document.getElementById('template-select');
       if (select) {
         select.value = lastTemplate;
+        if (select.value) await this.ui._applyTemplate();
       }
     }
   }

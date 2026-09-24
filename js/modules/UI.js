@@ -1,3 +1,5 @@
+import { solidDefinition } from './SolidReferences.js';
+import { VERSION } from '../version.js';
 import { parseRoster } from './Roster.js';
 
 /**
@@ -34,9 +36,9 @@ export class UI {
     if (header) {
       header.innerHTML = `
         <div class="header-inner">
-          <div class="logo">MarkScan</div>
+          <div class="logo">MarkScan <small class="app-version">v${VERSION}</small></div>
           <div class="header-actions">
-            <span class="status-badge">Processamento local</span>
+            <span class="status-badge">Processamento local</span><button id="open-help" class="btn settings-button" aria-label="Ajuda e manual prático" title="Manual prático" aria-haspopup="dialog">?</button>
             <button id="open-settings" class="btn settings-button" aria-label="Configurações" title="Configurações" aria-haspopup="dialog"><span aria-hidden="true" class="gear-symbol">⚙</span></button>
           </div>
         </div>
@@ -76,12 +78,16 @@ export class UI {
             <p>Para corrigir uma área, clique no seu número na imagem ou na lista abaixo, depois clique no novo centro. Use as setas do teclado para ajustes finos (Shift: 10 pixels); Esc cancela a seleção.</p>
             <div id="position-list" class="position-list" aria-label="Áreas de leitura"></div>
             <p id="template-answers" role="status"></p>
+            <label class="roster-label">Respostas corretas (opcional se já preenchidas na imagem)<input id="import-answers" placeholder="A B C D…"></label>
+            <p>Para uma folha de aluno em branco, importe a imagem sem respostas e informe o gabarito acima. O download preserva o conteúdo da imagem importada.</p>
+            <div class="review-actions"><button id="place-references" class="btn secondary">Posicionar referências</button><button id="clear-references" class="btn secondary">Remover referências</button></div>
+            <p id="reference-instruction" role="status"></p>
             <button id="save-template" class="btn primary">Salvar Gabarito</button>
           </div>
           <p>Escolha o modelo de correção que será usado</p>
           <select id="template-select" class="select-field"></select>
-          <button id="btn-apply-template" class="btn primary">Aplicar Gabarito</button>
-          <button id="edit-template" class="btn secondary">Editar gabarito selecionado</button>
+          <p id="active-template" role="status">Selecione um modelo para começar.</p>
+          <button id="edit-template" class="btn secondary">✎ Editar modelo</button><button id="delete-template" class="btn secondary">Excluir modelo</button>
         </section>
         
         <section class="step-card" id="step3">
@@ -94,6 +100,17 @@ export class UI {
         </section>
       </div>
       ${this._settingsMarkup()}
+      <dialog id="help-dialog" aria-labelledby="help-title"><div class="settings-heading"><h2 id="help-title">Manual prático · v${VERSION}</h2><button id="close-help" class="btn secondary" aria-label="Fechar ajuda">✕</button></div>
+      <h3>1. Prepare o modelo</h3><p>Abra ⚙ para definir questões, alternativas, formato, pontuação e alunos. Os ajustes válidos são salvos automaticamente neste navegador.</p>
+      <p><strong>Folha nova:</strong> use Criar folha com referências, informe o nome e as respostas. Baixe ou imprima a folha do aluno em branco e guarde o gabarito preenchido separado.</p>
+      <p><strong>Sua própria imagem:</strong> carregue uma foto ou imagem. Marque o centro da primeira alternativa da primeira questão e da última alternativa da última questão. Confira a grade; clique nos números para corrigir cada posição.</p>
+      <p>Use Posicionar referências e clique nos quatro cantos, em ordem: superior esquerdo, superior direito, inferior direito e inferior esquerdo. Escolha espaços brancos, longe das respostas. Salve e baixe a imagem com os blocos para inserir na prova. As cópias dos alunos precisam ter esses mesmos blocos nas mesmas posições.</p>
+      <h3>2. Selecione e corrija</h3><p>Selecionar um modelo já o ativa. Use Editar modelo para ajustar ou Excluir modelo para removê-lo; o histórico permanece.</p>
+      <p>Abra a câmera, mostre todas as referências e aguarde a leitura estabilizar. A nota fica acima da imagem. Confira o aluno e toque em Aceitar e salvar evidência; depois, Próxima prova. Você também pode carregar uma foto da prova.</p>
+      <h3>3. Confira e guarde</h3><p>Congelar para conferir permite revisar a imagem. No histórico, Ver imagem e Baixar imagem mostram a evidência. A nota só é registrada ao aceitar.</p>
+      <h3>Se a leitura falhar</h3><p>Aproxime a câmera, melhore a luz, alise o papel e mantenha os quatro blocos visíveis. Marcas pequenas precisam estar nítidas. Os blocos sólidos indicam orientação, mas não identificam o modelo: confira o modelo selecionado. Modelos antigos codificados continuam funcionando.</p>
+      <p>Dados e configurações ficam neste navegador. Limpar os dados do site os remove. PDFs devem ser convertidos em imagem antes de importar. Mudanças de geometria exigem novas cópias impressas.</p></dialog>
+      <dialog id="delete-dialog" aria-labelledby="delete-title"><h2 id="delete-title">Excluir modelo?</h2><p id="delete-name"></p><p>As notas e evidências já salvas serão mantidas.</p><button id="confirm-delete" class="btn danger">Excluir modelo</button><button id="cancel-delete" class="btn secondary">Cancelar</button></dialog>
       ${this.app.sheetBuilder.markup()}
     `;
   }
@@ -102,7 +119,7 @@ export class UI {
    * Vincula os eventos da interface
    */
   _bindEvents() {
-    document.getElementById('btn-apply-template').addEventListener('click', () => {
+    document.getElementById('template-select').addEventListener('change', () => {
       this._applyTemplate();
     });
     
@@ -110,9 +127,11 @@ export class UI {
       this._fillSettings();
       document.getElementById('settings-dialog').showModal();
     });
+    document.getElementById('settings-dialog').addEventListener('cancel', () => { try { this._saveSettings(true); } catch (error) { this._showMessage(error.message, 'error'); } });
+    document.getElementById('settings-form').addEventListener('change', () => { try { this._saveSettings(true); } catch (error) { document.getElementById('settings-error').textContent = error.message; } });
     document.getElementById('close-settings').addEventListener('click', () => document.getElementById('settings-dialog').close());
     document.getElementById('settings-form').addEventListener('submit', event => {
-      event.preventDefault(); this._saveSettings();
+      event.preventDefault(); try { this._saveSettings(); } catch (error) { document.getElementById('settings-error').textContent=error.message; }
     });
     document.getElementById('mark-shape').addEventListener('change', () => {
       document.getElementById('mark-height').disabled = document.getElementById('mark-shape').value !== 'rectangle';
@@ -159,10 +178,40 @@ export class UI {
         const text = await file.text(); parseRoster(text);
         document.getElementById('roster-text').value = text;
         document.getElementById('student-mode').value = 'list';
-        document.getElementById('settings-error').textContent = 'Lista carregada. Clique em Salvar configurações para aplicar.';
+        this._saveSettings(true);
       } catch (error) { document.getElementById('settings-error').textContent = error.message; }
       event.target.value = '';
     });
+    document.getElementById('open-help').onclick = () => document.getElementById('help-dialog').showModal();
+    document.getElementById('close-help').onclick = () => document.getElementById('help-dialog').close();
+    document.getElementById('delete-template').onclick = () => {
+      const select = document.getElementById('template-select');
+      if (!select.value) return this._showMessage('Selecione um modelo para excluir', 'info');
+      document.getElementById('delete-name').textContent = select.selectedOptions[0].textContent;
+      document.getElementById('delete-dialog').showModal();
+    };
+    document.getElementById('cancel-delete').onclick = () => document.getElementById('delete-dialog').close();
+    document.getElementById('confirm-delete').onclick = async () => {
+      const button=document.getElementById('confirm-delete'); if(button.disabled) return; button.disabled=true;
+      try {
+        await this.app.template.removeTemplate(document.getElementById('template-select').value);
+        this._closeCamera(); this.app.review.invalidate(); this.app.currentTemplate = null;
+        this.app.scanner.currentExam = null;
+        this.editingTemplateId = null; this.templateImage = null;
+        document.getElementById('template-editor').hidden = true;
+        await this.app._loadTemplates(); await this._applyTemplate();
+        document.getElementById('delete-dialog').close();
+        this._showMessage('Modelo excluído. As correções e evidências foram preservadas.', 'success');
+      } catch (error) { this._showMessage(error.message, 'error'); } finally { button.disabled=false; }
+    };
+    document.getElementById('import-answers').oninput = () => this._drawTemplate();
+    document.getElementById('place-references').onclick = () => {
+      if (!this.templateImage) return;
+      this.referencePoints = []; this.placingReferences = true; this._drawTemplate();
+    };
+    document.getElementById('clear-references').onclick = () => {
+      this.referencePoints = []; this.placingReferences = false; this._drawTemplate();
+    };
     this.app.review.bind();
     this.app.sheetBuilder.bind();
   }
@@ -171,7 +220,7 @@ export class UI {
     return `<dialog id="settings-dialog" aria-labelledby="settings-title">
       <form id="settings-form">
         <div class="settings-heading"><h2 id="settings-title">Configurações</h2><button type="button" id="close-settings" class="btn secondary" aria-label="Fechar configurações">✕</button></div>
-        <p>Os ajustes de leitura valem para o gabarito em edição. Gabaritos salvos mantêm sua calibração até você editá-los e salvar.</p>
+        <p>Os ajustes válidos são salvos automaticamente ao alterar os campos. Os ajustes de leitura valem para o gabarito em edição. Gabaritos salvos mantêm sua calibração até você editá-los e salvar.</p>
         <fieldset><legend>Grade e área de leitura</legend><div class="settings-grid">
           <label>Questões<input id="template-rows" type="number" min="1" max="100" step="1" required></label>
           <label>Alternativas<input id="template-cols" type="number" min="2" max="8" step="1" required></label>
@@ -180,6 +229,7 @@ export class UI {
           <label>Altura do retângulo (pixels)<input id="mark-height" type="number" min="2" max="200" step="1" required></label>
           <label>Limiar de leitura (0–255)<input id="mark-threshold" type="number" min="0" max="255" step="1" required></label>
         </div><p>A área deve ficar dentro da marca impressa. Alterar a quantidade de questões ou alternativas refaz a grade e remove ajustes individuais.</p></fieldset>
+        <fieldset><legend>Referências impressas</legend><div class="settings-grid"><label>Espessura dos blocos (pixels na imagem)<select id="reference-thickness"><option value="3">3 px</option><option value="5">5 px (recomendado)</option><option value="8">8 px</option><option value="10">10 px</option></select></label></div><p>Quatro blocos sólidos com comprimentos diferentes indicam a orientação. Use espaços brancos ao redor e teste a impressão; 3 px exige maior aproximação da câmera.</p></fieldset>
         <fieldset><legend>Números e contornos sobre a imagem</legend><div class="settings-grid">
           <label>Cor do contorno<input id="annotation-color" type="color"></label>
           <label>Cor dos números<input id="annotation-textColor" type="color"></label>
@@ -214,6 +264,7 @@ export class UI {
     const c = this.config.get('calibration'), a = this.config.get('annotation'), scoring = this.config.get('scoring');
     document.getElementById('student-mode').value = this.config.get('students.mode');
     document.getElementById('roster-text').value = this.config.get('students.rosterText');
+    document.getElementById('reference-thickness').value = this.config.get('calibration.referenceThickness') || 5;
     document.getElementById('grade-scale').value = this.config.get('review.gradeScale');
     for (const [id, value] of Object.entries({ 'template-rows': c.rows, 'template-cols': c.cols, 'mark-shape': c.shape,
       'mark-width': c.width, 'mark-height': c.height, 'mark-threshold': c.threshold,
@@ -225,12 +276,12 @@ export class UI {
     document.getElementById('settings-error').textContent = '';
   }
 
-  _saveSettings() {
+  _saveSettings(automatic = false) {
     const form = document.getElementById('settings-form');
-    if (!form.reportValidity()) return;
+    if (!(automatic ? form.checkValidity() : form.reportValidity())) { document.getElementById('settings-error').textContent = 'Há campos inválidos. Corrija-os para salvar as alterações.'; return false; }
     const number = id => Number(document.getElementById(id).value);
     const value = id => document.getElementById(id).value;
-    const calibration = { rows: number('template-rows'), cols: number('template-cols'), shape: value('mark-shape'),
+    const calibration = { referenceThickness: number('reference-thickness'), rows: number('template-rows'), cols: number('template-cols'), shape: value('mark-shape'),
       width: number('mark-width'), height: number('mark-height'), threshold: number('mark-threshold') };
     const annotation = Object.fromEntries(Object.keys(this.config.get('annotation')).map(key =>
       [key, ['fontSize', 'lineWidth', 'zoom'].includes(key) ? number(`annotation-${key}`) : value(`annotation-${key}`)]));
@@ -251,13 +302,15 @@ export class UI {
       if (students.mode === 'list' && !roster.length) throw new Error('Cadastre pelo menos um aluno para usar a lista.');
     } catch (error) { document.getElementById('settings-error').textContent = error.message; return; }
     const previous = this.config.get('calibration');
+    this.config.update({ calibration, annotation, students, review: { gradeScale: number('grade-scale') }, scoring: { correct: number('score-correct'), incorrect: number('score-incorrect'), blank: number('score-blank') } });
     if (calibration.rows !== previous.rows || calibration.cols !== previous.cols) {
       this.positions = null; this.positionHistory = []; this.moveTarget = null;
     }
-    this.config.update({ calibration, annotation, students, review: { gradeScale: number('grade-scale') }, scoring: { correct: number('score-correct'), incorrect: number('score-incorrect'), blank: number('score-blank') } });
-    document.getElementById('settings-dialog').close();
+    if (!automatic) document.getElementById('settings-dialog').close();
     this._drawTemplate(); this._redrawExam(); this.app.review.settingsChanged();
-    this._showMessage('Configurações salvas', 'success');
+    document.getElementById('settings-error').textContent = 'Configurações salvas neste navegador.';
+    if (!automatic) this._showMessage('Configurações salvas', 'success');
+    return true;
   }
 
   async _loadImage(file) {
@@ -295,7 +348,7 @@ export class UI {
     try {
       await this.app.camera.initialize(document.getElementById('camera-preview'));
       if (kind === 'exam') this.app.review.cameraStarted();
-      panel.scrollIntoView({ block: 'center' });
+      panel.scrollIntoView({ block: 'start' });
     } catch (error) { this._closeCamera(); this._showMessage(error.message, 'error'); }
     finally { button.disabled = false; this.openingCamera = false; }
   }
@@ -307,6 +360,9 @@ export class UI {
   }
 
   _editTemplate(image, template = null) {
+    this.referencePoints = template?.alignment?.type === 'solid-v1' ? template.alignment.markers.map(m=>[m.x,m.y]) : [];
+    this.placingReferences = false;
+    document.getElementById('import-answers').value = template?.answerOverride || template?.imported?.answerOverride || '';
     this.templateImage = image;
     this.editingTemplateId = template ? template.id : null;
     this.corners = template ? [[template.layout.left, template.layout.top], [template.layout.right, template.layout.bottom]] : [];
@@ -337,6 +393,11 @@ export class UI {
     const x = (event.clientX - rect.left) * event.target.width / rect.width;
     const y = (event.clientY - rect.top) * event.target.height / rect.height;
     const point = [Math.max(0, Math.min(1, x / event.target.width)), Math.max(0, Math.min(1, y / event.target.height))];
+    if (this.placingReferences) {
+      this.referencePoints.push([x,y]);
+      if (this.referencePoints.length === 4) this.placingReferences = false;
+      this._drawTemplate(); return;
+    }
     if (this.moveTarget !== null && this.moveTarget !== undefined) {
       this._rememberPositions();
       if (this.moveTarget === 'first' || this.moveTarget === 'last') {
@@ -446,7 +507,12 @@ export class UI {
       Object.assign(this.app.omr.options, { optionsPerQuestion: layout.cols, threshold: c.threshold,
         sampleShape: region.shape, sampleWidth: region.width * canvas.width, sampleHeight: region.height * canvas.height });
       const positions = this.app.omr.detectBubbles(this.templateImage, layout);
-      const answers = this.app.omr.processOMR(this.templateImage, positions, layout.rows);
+      let answers = this.app.omr.processOMR(this.templateImage, positions, layout.rows);
+      const override = document.getElementById('import-answers').value.trim();
+      if (override) {
+        answers = override.toUpperCase().replace(/[\s,;|]+/g, '').split('').map(c=>c.charCodeAt(0)-65);
+        if (answers.length !== layout.rows || answers.some(a=>a<0 || a>=layout.cols)) throw new Error(`Informe ${layout.rows} respostas entre A e ${String.fromCharCode(64+layout.cols)}.`);
+      }
       this._drawPositions(canvas, layout, region);
       positions.forEach((_, index) => {
         const button = document.createElement('button'); button.type = 'button';
@@ -459,7 +525,17 @@ export class UI {
       if (answers.some(a => a < 0)) throw new Error('Há questões em branco ou ambíguas. Corrija as posições ou ajuste a área de leitura na engrenagem.');
       this.templateAnalysis = { layout, answers, region, imageSize: { width: canvas.width, height: canvas.height }, threshold: c.threshold, radius: region.width / 2 };
     } catch (error) { if (this.corners.length === 2) text.textContent += ` — ${error.message}`; }
-    document.getElementById('save-template').disabled = !this.templateAnalysis;
+    const referenceNames = ['superior esquerdo', 'superior direito', 'inferior direito', 'inferior esquerdo'];
+    const referenceInstruction = document.getElementById('reference-instruction');
+    referenceInstruction.textContent = this.placingReferences ? `Referência ${this.referencePoints.length+1}/4: clique no canto ${referenceNames[this.referencePoints.length]}, em um espaço branco.` : this.referencePoints?.length === 4 ? 'Quatro referências posicionadas. Para alterar, use Posicionar referências novamente.' : 'Sem referências: leitura com alinhamento manual.';
+    if (this.referencePoints?.length) {
+      const ctx=canvas.getContext('2d'), thickness=c.referenceThickness || 5;
+      this.referencePoints.forEach(([x,y],i)=>{
+        const width=thickness*(3+i*2); ctx.fillStyle='black';ctx.fillRect(x-width/2,y-thickness/2,width,thickness);
+        ctx.strokeStyle='#00a878';ctx.lineWidth=2;ctx.strokeRect(x-width/2-3,y-thickness/2-3,width+6,thickness+6);
+      });
+    }
+    document.getElementById('save-template').disabled = !this.templateAnalysis || !!this.placingReferences;
     document.getElementById('save-template').textContent = this.editingTemplateId ? 'Salvar alterações do gabarito' : 'Salvar Gabarito';
     document.getElementById('undo-position').disabled = !this.positionHistory.length;
     document.getElementById('move-last').disabled = !this.corners.length;
@@ -482,11 +558,11 @@ export class UI {
       if (template.generated) { this.app.sheetBuilder.edit(template); return; }
       if (!template.url) throw new Error('Este gabarito antigo não guardou a imagem. Selecione a imagem original para cadastrá-lo novamente.');
       const image = new Image();
-      await new Promise((resolve, reject) => { image.onload = resolve; image.onerror = () => reject(new Error('Não foi possível abrir a imagem salva')); image.src = template.url; });
+      await new Promise((resolve, reject) => { image.onload = resolve; image.onerror = () => reject(new Error('Não foi possível abrir a imagem salva')); image.src = template.imported?.sourceURL || template.url; });
       const canvas = document.createElement('canvas'); canvas.width = image.naturalWidth; canvas.height = image.naturalHeight;
       const ctx = canvas.getContext('2d'); ctx.drawImage(image, 0, 0);
       const region = template.region || { shape: 'circle', width: template.radius * 2, height: template.radius * 2 * canvas.width / canvas.height };
-      this.config.update({ calibration: { rows: template.layout.rows, cols: template.layout.cols, shape: region.shape,
+      this.config.update({ calibration: { referenceThickness: template.alignment?.markerSize || this.config.get('calibration.referenceThickness') || 5, rows: template.layout.rows, cols: template.layout.cols, shape: region.shape,
         width: Math.round(region.width * canvas.width), height: Math.round(region.height * canvas.height), threshold: template.threshold ?? 128 } });
       this._editTemplate(ctx.getImageData(0, 0, canvas.width, canvas.height), template);
       document.getElementById('template-editor').scrollIntoView({ block: 'start' });
@@ -494,20 +570,40 @@ export class UI {
   }
 
   async _saveTemplate() {
-    if (!this.templateAnalysis) return;
+    if (!this.templateAnalysis || this.savingTemplate) return;
     const name = document.getElementById('template-name').value.trim();
     if (!name) { this._showMessage('Dê um nome ao gabarito', 'error'); return; }
     try {
+      this.savingTemplate=true; document.getElementById('save-template').disabled=true;
       const id = this.editingTemplateId || `template-${Date.now()}-${Math.random().toString(36).slice(2)}`;
       const original = document.createElement('canvas'); original.width = this.templateImage.width; original.height = this.templateImage.height;
       original.getContext('2d').putImageData(this.templateImage, 0, 0);
-      await this.app.template.registerTemplate(id, original.toDataURL('image/png'), name, this.templateAnalysis);
+      const sourceURL = original.toDataURL('image/png');
+      const analysis = { ...this.templateAnalysis, answerOverride: document.getElementById('import-answers').value.trim() };
+      if (this.referencePoints?.length === 4) {
+        const definition = solidDefinition(original.width, original.height, this.config.get('calibration.referenceThickness') || 5, this.referencePoints);
+        const ctx=original.getContext('2d');
+        // Preserve the imported form: references must occupy unused white space.
+        for (const m of definition.markers) {
+          const left=Math.floor(m.x-m.width/2-4),top=Math.floor(m.y-m.height/2-4),w=Math.ceil(m.width+8),h=Math.ceil(m.height+8);
+          if(left<0 || top<0 || left+w>original.width || top+h>original.height) throw new Error('Deixe os blocos e uma margem branca dentro da imagem.');
+          const pixels=ctx.getImageData(left,top,w,h).data;
+          for(let i=0;i<pixels.length;i+=4) if((pixels[i]+pixels[i+1]+pixels[i+2])/3<180) throw new Error('Uma referência cobre conteúdo. Reposicione os blocos em espaços brancos.');
+          ctx.fillStyle='black';ctx.fillRect(m.x-m.width/2,m.y-m.height/2,m.width,m.height);
+        }
+        const rendered=ctx.getImageData(0,0,original.width,original.height);
+        this.app.alignment.align(rendered,definition);
+        analysis.alignment=definition;
+        analysis.imported={sourceURL,answerOverride:document.getElementById('import-answers').value.trim()};
+      }
+      await this.app.template.registerTemplate(id, original.toDataURL('image/png'), name, analysis);
       this.editingTemplateId = id;
       this._drawTemplate();
       await this.app._loadTemplates();
       document.getElementById('template-select').value = id;
       await this._applyTemplate();
     } catch (error) { this._showMessage(`Erro ao salvar: ${error.message}`, 'error'); }
+    finally { this.savingTemplate=false; this._drawTemplate(); }
   }
 
   /**
@@ -517,21 +613,29 @@ export class UI {
     const select = document.getElementById('template-select');
     const templateId = select.value;
     if (!templateId) {
-      this._showMessage('Selecione um gabarito primeiro', 'error');
+      this._closeCamera(); this.app.review.invalidate(); this.app.currentTemplate = null; this.app.scanner.currentExam = null;
+      this.config.update({ exam: { lastTemplate: '' } });
+      document.getElementById('active-template').textContent = 'Selecione um modelo para começar.';
+      document.getElementById('scan-status').textContent = '';
+      document.getElementById('exam-preview').hidden = true;
+      document.getElementById('results-panel').replaceChildren();
       return;
     }
     
     try {
+      select.disabled = true; this.app.currentTemplate = null;
       this._closeCamera(); this.app.review.invalidate();
       await this.app.scanner.initializeWithTemplate(templateId);
       document.getElementById('exam-preview').hidden = true;
       document.getElementById('results-panel').replaceChildren();
       document.getElementById('scan-status').textContent = this.app.currentTemplate.alignment ? 'Alinhamento automático ativo: mostre as quatro marcas da folha.' : 'Gabarito manual aplicado: mantenha o mesmo enquadramento.';
-      this._showMessage('Gabarito aplicado com sucesso', 'success');
+      document.getElementById('active-template').textContent = `Modelo ativo: ${this.app.currentTemplate.description}`;
       this._renderResultsPreview();
     } catch (error) {
+      this.app.currentTemplate = null; this.app.scanner.currentExam = null;
+      document.getElementById('active-template').textContent = 'Não foi possível ativar este modelo.';
       this._showMessage(`Erro ao aplicar gabarito: ${error.message}`, 'error');
-    }
+    } finally { select.disabled = false; }
   }
 
   /**

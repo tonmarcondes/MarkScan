@@ -1,3 +1,4 @@
+import { solidDefinition, solidSVG } from './SolidReferences.js';
 const WIDTH = 840, HEIGHT = 1188, MARKER_SIZE = 56;
 const WORDS = [[1, 0, 0, 0, 0], [1, 0, 1, 1, 1], [0, 1, 0, 0, 1], [0, 1, 1, 1, 0]];
 const escapeXML = text => String(text).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&apos;' }[c]));
@@ -43,12 +44,16 @@ export function buildTemplate(name, settings, answers) {
     region: { shape, width: Math.min(settings.width, markWidth * .55) / WIDTH, height: Math.min(shape === 'rectangle' ? settings.height : settings.width, markHeight * .55) / HEIGHT },
     threshold: settings.threshold,
     generated: { version: 1, markWidth, markHeight },
-    alignment: { type: 'aruco-v1', width: WIDTH, height: HEIGHT, markerSize: MARKER_SIZE,
-      markers: [[52, 52], [788, 52], [788, 1136], [52, 1136]].map(([x, y], i) => ({ id: ids[i], x, y })) }
+    alignment: settings.referenceStyle === 'coded' ? { type: 'aruco-v1', width: WIDTH, height: HEIGHT, markerSize: MARKER_SIZE,
+      markers: [[52, 52], [788, 52], [788, 1136], [52, 1136]].map(([x, y], i) => ({ id: ids[i], x, y })) } : solidDefinition(WIDTH, HEIGHT, settings.referenceThickness || 5)
   };
 }
 
 export function sheetSVG(template, key = false) {
+  if (template.imported && template.alignment) {
+    const {width,height}=template.alignment;
+    return `<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}"><image width="${width}" height="${height}" href="${template.url}" xlink:href="${template.url}"/></svg>`;
+  }
   if (!template.generated || !template.alignment) throw new Error('Este modelo não foi criado com referências. Use Criar folha com referências.');
   const { width, height, markers, markerSize } = template.alignment;
   const { markWidth, markHeight } = template.generated;
@@ -71,7 +76,7 @@ export function sheetSVG(template, key = false) {
     }
   }
   svg += `<text x="420" y="1072" text-anchor="middle" font-size="12">${rows} questões · ${cols} alternativas · Referências ${markers.map(marker => marker.id).join(' / ')}</text></g>`;
-  for (const marker of markers) svg += markerSVG(marker.id, marker.x, marker.y, markerSize);
+  for (const marker of markers) svg += template.alignment.type === 'solid-v1' ? solidSVG(marker) : markerSVG(marker.id, marker.x, marker.y, markerSize);
   return svg + '</svg>';
 }
 
@@ -96,7 +101,7 @@ export default class SheetBuilder {
       <p id="sheet-error" role="alert"></p><button id="create-sheet" class="btn primary">Criar e salvar gabarito</button>
     </form></dialog>
     <dialog id="print-sheet-dialog" aria-labelledby="print-sheet-title"><div class="settings-heading"><h2 id="print-sheet-title">Folhas com referências</h2><button id="close-print-sheet" class="btn secondary" aria-label="Fechar folhas">✕</button></div>
-      <p>Imprima a folha do aluno para as provas. O gabarito do professor contém as respostas: mantenha-o separado. Preserve as quatro marcas e use o mesmo modelo nas cópias.</p>
+      <p id="print-description">Imprima a folha do aluno para as provas. O gabarito do professor contém as respostas: mantenha-o separado. Preserve as quatro marcas e use o mesmo modelo nas cópias.</p>
       <div class="review-actions"><button id="print-student" class="btn primary">Imprimir folha do aluno</button><button id="download-student" class="btn secondary">Baixar folha do aluno</button><button id="print-key" class="btn secondary">Imprimir gabarito</button><button id="download-key" class="btn secondary">Baixar gabarito</button></div>
       <div id="sheet-preview"></div>
     </dialog>`;
@@ -104,8 +109,11 @@ export default class SheetBuilder {
   bind() {
     document.getElementById('new-sheet').addEventListener('click', () => {
       this.editing = null;
+      document.getElementById('sheet-form').reset();
+      document.getElementById('sheet-title').textContent = 'Criar folha com referências';
+      document.getElementById('create-sheet').textContent = 'Criar e salvar gabarito';
       const settings = this.app.config.get('calibration');
-      document.getElementById('sheet-summary').textContent = `${settings.rows} questões · ${settings.cols} alternativas · quatro referências codificadas`;
+      document.getElementById('sheet-summary').textContent = `${settings.rows} questões · ${settings.cols} alternativas · quatro blocos sólidos de referência`;
       document.getElementById('sheet-error').textContent = '';
       document.getElementById('sheet-dialog').showModal();
     });
@@ -120,6 +128,8 @@ export default class SheetBuilder {
   }
   edit(template) {
     this.editing = template;
+    document.getElementById('sheet-title').textContent = 'Editar modelo';
+    document.getElementById('create-sheet').textContent = 'Salvar alterações';
     document.getElementById('sheet-name').value = template.description;
     document.getElementById('sheet-answers').value = template.answers.map(answer => String.fromCharCode(65 + answer)).join(' ');
     document.getElementById('sheet-summary').textContent = `Editar respostas: ${template.layout.rows} questões · ${template.layout.cols} alternativas. As referências e a folha impressa serão mantidas.`;
@@ -153,13 +163,22 @@ export default class SheetBuilder {
     try {
       const id = document.getElementById('template-select').value;
       const template = await this.app.template.getTemplate(id);
-      if (!template?.generated) throw new Error('Selecione um gabarito criado com referências, ou crie uma nova folha.');
+      if (!template?.generated && !template?.imported) throw new Error('Selecione um gabarito criado com referências, ou crie uma nova folha.');
       this.template = template;
+      const imported=!!template.imported;
+      document.getElementById('print-description').textContent=imported ? 'Imagem importada com referências. O conteúdo original foi preservado: se houver respostas preenchidas, elas também aparecerão no download. Para distribuir uma folha em branco, importe uma imagem em branco e informe as respostas no editor.' : 'Imprima a folha do aluno em branco. Guarde o gabarito do professor separado e preserve as quatro referências.';
+      document.getElementById('print-student').textContent=imported ? 'Imprimir imagem com referências' : 'Imprimir folha do aluno';
+      document.getElementById('download-student').textContent=imported ? 'Baixar imagem com referências (PNG)' : 'Baixar folha do aluno';
+      document.getElementById('print-key').hidden=imported;
+      document.getElementById('download-key').hidden=imported;
       document.getElementById('sheet-preview').innerHTML = sheetSVG(template, false);
       document.getElementById('print-sheet-dialog').showModal();
     } catch (error) { this.ui._showMessage(error.message, 'error'); }
   }
   download(key) {
+    if(this.template.imported) {
+      const link=document.createElement('a');link.href=this.template.url;link.download=`MarkScan-referencias-${this.template.id}.png`;link.click();return;
+    }
     const url = URL.createObjectURL(new Blob([sheetSVG(this.template, key)], { type: 'image/svg+xml' }));
     const link = document.createElement('a'); link.href = url; link.download = `MarkScan-${key ? 'gabarito' : 'aluno'}-${this.template.id}.svg`; link.click();
     setTimeout(() => URL.revokeObjectURL(url), 60000);

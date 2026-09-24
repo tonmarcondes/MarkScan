@@ -1,6 +1,18 @@
-# MarkScan OMR
+# MarkScan OMR · v1.3.0
 
-Aplicativo web para criar e corrigir folhas de respostas, usando imagens ou câmera. As folhas geradas pelo aplicativo têm **quatro referências codificadas e alinhamento automático por perspectiva**. Modelos antigos sem referências mantêm a calibração manual. O processamento acontece no navegador; gabaritos, configurações e histórico são armazenados localmente.
+Aplicativo web para criar e corrigir folhas de respostas, usando imagens ou câmera. As folhas geradas pelo aplicativo têm **quatro blocos sólidos de referência e alinhamento automático por perspectiva**. Modelos antigos sem referências mantêm a calibração manual. O processamento acontece no navegador; gabaritos, configurações e histórico são armazenados localmente.
+
+## Novidades da versão 1.3.0
+
+- Versão visível ao lado da marca e manual prático pelo botão **?**.
+- Selecionar um modelo já o ativa; o último modelo é restaurado ao reabrir.
+- Criação, edição e exclusão de modelos. Excluir um modelo preserva as notas e evidências do histórico.
+- Configurações válidas são persistidas automaticamente ao alterar os campos.
+- Nota e pontos ficam acima da câmera, sem cobrir a imagem.
+- Novas referências são blocos sólidos com espessura padrão de 5 px, ajustável na engrenagem.
+- Imagens próprias podem receber referências posicionadas pelo professor e ser exportadas como PNG.
+
+A interface específica para celular, splash screen e compartilhamento adaptado por dispositivo ficam para uma próxima etapa.
 
 ## Executar
 
@@ -25,7 +37,7 @@ Clique no ícone **⚙** do cabeçalho. Todas as configurações ficam nessa jan
 - **Pontuação:** acerto, desconto por erro, pontos em branco e nota máxima.
 - **Alunos:** identificação por nome, lista pré-carregada ou sem identificação.
 
-Clique em **Salvar configurações** para aplicar e persistir. Fechar ou pressionar Esc cancela os ajustes não salvos. A aparência vale para as imagens exibidas; a geometria e o limiar de um gabarito salvo só mudam quando ele é editado e salvo novamente.
+Os campos válidos são salvos automaticamente ao alterar e sair do campo; seletores são salvos imediatamente. **Salvar configurações** também valida e fecha a janela. Fechar ou pressionar Esc mantém os ajustes já salvos. Campos inválidos exibem uma mensagem e não substituem as últimas configurações válidas. A aparência vale para as imagens exibidas; a geometria e o limiar de um gabarito salvo só mudam quando ele é editado e salvo novamente.
 
 ## Criar gabaritos e folhas com alinhamento automático
 
@@ -35,17 +47,28 @@ Clique em **Salvar configurações** para aplicar e persistir. Fechar ou pressio
 4. Em **Imprimir / baixar folhas**, imprima a **folha do aluno**, em branco, para distribuir. O **gabarito do professor** tem as respostas preenchidas e deve ficar separado.
 5. As folhas podem ser baixadas em SVG (vetorial), ou impressas em A4 pelo navegador, inclusive usando Salvar como PDF na janela de impressão. Mantenha as quatro marcas visíveis, sem recortar as margens.
 
-As quatro referências têm códigos distintos e estão nos quatro cantos, nas mesmas posições na folha do aluno e no gabarito. O detector reconhece a orientação da página, inclusive de cabeça para baixo. Os 16 vértices das quatro marcas são usados para estimar uma transformação de perspectiva (homografia), normalizando a imagem antes de ler as respostas.
+As quatro referências são retângulos pretos sólidos, de espessura padrão de 5 pixels na imagem e comprimentos de 15, 25, 35 e 45 pixels, em sentido horário a partir do canto superior esquerdo. A engrenagem também oferece espessuras de 3, 8 e 10 pixels. Os comprimentos diferentes permitem reconhecer a orientação, inclusive de cabeça para baixo. Os 16 vértices são usados para validar e estimar a transformação de perspectiva, normalizando a imagem antes de ler as respostas. Na captura, a espessura precisa ocupar ao menos 3 pixels nítidos; marcas menores exigem aproximação e boa iluminação.
 
-O modelo é selecionado pelo professor; referências de outra folha são rejeitadas. Os códigos são gerados aleatoriamente para cada novo modelo. **Editar gabarito selecionado** permite alterar nome e respostas de um modelo gerado mantendo suas referências e geometria; isso não altera registros de correções já aceitas. Para mudar o número de questões, alternativas ou o formato impresso, crie uma nova folha.
+O professor deve selecionar o modelo correto: **blocos sólidos não identificam o modelo**. Duas folhas com a mesma geometria de referências podem ser alinhadas, mesmo com respostas corretas diferentes. Modelos antigos com marcas codificadas continuam usando seus códigos e detector anteriores. **Editar modelo** permite alterar nome e respostas de um modelo gerado mantendo suas referências e geometria; isso não altera registros de correções já aceitas. Para mudar o número de questões, alternativas ou o formato impresso, crie uma nova folha.
 
 O criador organiza até 25 questões por bloco, usando até quatro blocos na mesma página. O tamanho das áreas de amostragem é limitado ao interior das marcas impressas. A impressão é validada pelo próprio detector antes de salvar o modelo.
+
+## Usar uma imagem própria com referências
+
+1. Importe uma imagem ou fotografe o formulário. Para distribuir uma folha em branco, use uma imagem sem respostas preenchidas.
+2. Configure questões e alternativas na engrenagem e clique na primeira e na última área, como na calibração manual abaixo. Confira e ajuste os pontos individuais.
+3. Informe as **Respostas corretas** no campo do editor, por exemplo `A B C D`. Se a imagem já estiver preenchida, deixe o campo vazio para detectar as respostas nos pixels.
+4. Clique em **Posicionar referências** e marque quatro espaços brancos: superior esquerdo, superior direito, inferior direito e inferior esquerdo. Os blocos aparecem durante os cliques. Para corrigir, inicie o posicionamento novamente.
+5. Deixe margem branca ao redor dos blocos e mantenha-os dentro da imagem. O app recusa blocos que cubram conteúdo ou que não permitam validar o alinhamento. **Remover referências** retorna ao modo manual.
+6. Salve o modelo e abra **Imprimir / baixar folhas**. Use **Baixar imagem com referências (PNG)** para inserir a imagem na prova, preservando proporções e os quatro blocos. A impressão da imagem também está disponível.
+
+O arquivo preserva o conteúdo da imagem original: respostas já preenchidas não são apagadas automaticamente. A imagem original e as posições ficam guardadas para edição posterior. Alterar geometria ou referências exige atualizar as cópias impressas. O alinhamento só funciona nas cópias que contêm as referências exportadas.
 
 ## Alinhamento durante a leitura
 
 - Mostre a folha inteira à câmera. Não é necessário coincidir manualmente a folha com uma grade fixa.
 - O contorno verde acompanha a página detectada, e as áreas de leitura são projetadas sobre as respostas. A nota usa a imagem já corrigida para posição, escala, rotação e perspectiva.
-- A leitura e o aceite ficam bloqueados se faltar uma marca, houver códigos repetidos/errados, a folha estiver cortada, as referências estiverem pequenas demais ou a geometria for inconsistente. Perder as referências remove a nota prévia, evitando aceitar um quadro antigo.
+- A leitura e o aceite ficam bloqueados se faltar uma marca, o conjunto for ambíguo (ou houver códigos repetidos/errados nos modelos antigos), a folha estiver cortada, as referências estiverem pequenas demais ou a geometria for inconsistente. Perder as referências remove a nota prévia, evitando aceitar um quadro antigo.
 - **Congelar para conferir** mostra a folha endireitada. A evidência salva contém essa imagem e, abaixo, o quadro original antes da correção, além dos dados da nota.
 - A mesma correção automática funciona no upload de fotos das folhas geradas.
 
@@ -59,15 +82,15 @@ As referências precisam estar **impressas na folha**. Desenhá-las apenas na te
 4. Clique no centro da última área (última alternativa da última questão). A grade será preenchida com números sequenciais, da esquerda para a direita e de cima para baixo. A lista abaixo associa cada número à questão e à alternativa.
 5. Se um ponto estiver errado, clique no número na imagem ou na lista, depois clique no novo centro. As **setas** ajustam um pixel; **Shift + seta** ajusta dez pixels. **Esc** cancela a seleção. **Desfazer** recupera a posição anterior.
 6. **Reposicionar primeira/última** recalcula a grade a partir dos extremos e remove ajustes individuais; **Refazer grade** volta ao primeiro clique. Alterar a quantidade de questões/alternativas na engrenagem também remove os ajustes individuais.
-7. Confira as áreas de leitura e as respostas detectadas. Cada contorno deve ficar dentro da marca impressa, sem incluir sua borda. Clique em **Salvar Gabarito**. Questões em branco ou ambíguas impedem o salvamento.
+7. Confira as áreas de leitura e as respostas detectadas. Cada contorno deve ficar dentro da marca impressa, sem incluir sua borda. Clique em **Salvar Gabarito**. Questões em branco ou ambíguas impedem o salvamento, a menos que você informe as respostas corretas no campo do editor.
 
-A imagem original, a calibração, as posições ajustadas e as respostas ficam salvas. Os números são apenas sobreposições visuais e nunca entram na leitura dos pixels. Para corrigir mais tarde, selecione o gabarito e clique em **Editar gabarito selecionado**, faça os ajustes e salve; isso atualiza o mesmo registro.
+A imagem original, a calibração, as posições ajustadas e as respostas ficam salvas. Os números são apenas sobreposições visuais e nunca entram na leitura dos pixels. Para corrigir mais tarde, selecione o gabarito e clique em **Editar modelo**, faça os ajustes e salve; isso atualiza o mesmo registro.
 
-Gabaritos cadastrados antes desta versão não guardavam a imagem original: nesse caso, é necessário selecionar a imagem e cadastrá-los novamente. Para apenas corrigir provas com um gabarito salvo, use **Aplicar Gabarito**.
+Gabaritos cadastrados antes desta versão não guardavam a imagem original: nesse caso, é necessário selecionar a imagem e cadastrá-los novamente. Para corrigir provas, basta selecionar um gabarito salvo. A seleção já o ativa; não há um segundo botão de aplicação. **Excluir modelo** pede confirmação e remove apenas o modelo, preservando o histórico.
 
 ## Correção rápida com câmera
 
-1. Aplique o gabarito e clique em **Abrir câmera para prova**.
+1. Selecione o gabarito e clique em **Abrir câmera para prova**.
 2. Nas folhas com referências, mostre os quatro cantos. Nos modelos manuais, alinhe a folha aos contornos e números. A câmera mostra **nota e pontos ao vivo**; há um intervalo de 300 ms entre processamentos, além do tempo de detecção/leitura, que varia conforme o dispositivo.
 3. Aguarde três leituras iguais e confira o resultado. “Leitura estável” significa repetição das respostas, não garantia de que a marcação do aluno esteja nítida. Nas folhas com referências, também é exigido alinhamento válido; no modo manual, uma folha fora de posição pode produzir leituras estáveis.
 4. Informe o aluno, se configurado, e clique em **Aceitar e salvar evidência**. A nota permanece apenas como prévia até esse aceite.
@@ -100,13 +123,13 @@ Em **Correções aceitas**, use **Ver imagem** para consultar a evidência e **B
 
 ## Corrigir por arquivo
 
-Aplique o gabarito, selecione a imagem da prova, confira o aluno e as respostas, e clique em **Aceitar e salvar evidência**. Upload usa o mesmo histórico e o mesmo processo de confirmação da câmera.
+Selecione o gabarito e a imagem da prova, confira o aluno e as respostas, e clique em **Aceitar e salvar evidência**. Upload usa o mesmo histórico e o mesmo processo de confirmação da câmera.
 
 Use PNG, JPEG ou outro formato de imagem aceito pelo navegador. PDF não é aceito. Se HEIC não abrir, converta para JPEG. Imagens de arquivo são reduzidas para no máximo 1800 pixels no maior lado; a leitura ao vivo usa até 1280 pixels para manter a velocidade.
 
 ## Limitações da leitura
 
-- A correção geométrica usa as quatro marcas codificadas dos modelos gerados. Não há reconhecimento de qualquer formato de prova, QR code ou marca arbitrária.
+- A correção geométrica usa os quatro blocos sólidos dos modelos novos, ou as quatro marcas codificadas dos modelos antigos. Não há reconhecimento de qualquer formato de prova, QR code ou marca arbitrária. Blocos sólidos não verificam a identidade do modelo.
 - A transformação corrige perspectiva de uma folha plana. Papel curvado, dobras, distorção óptica forte, reflexos, sombras e desfoque podem impedir a leitura ou reduzir a precisão. A verificação geométrica não substitui a conferência da nota.
 - Modelos antigos, sem referências, exigem o mesmo formulário, enquadramento e orientação usados na calibração. A grade inicial manual tem uma questão por linha; seus pontos podem ser ajustados individualmente.
 - Os blocos de questões são suportados automaticamente nas folhas geradas, cujas posições já são conhecidas. Não existe detecção automática de bolhas em um formulário arbitrário.
@@ -126,6 +149,8 @@ Com o servidor na porta 8080, Node.js 18+ e Playwright disponível:
 node tests/browser.cjs
 node tests/review.cjs
 node tests/alignment.cjs
+MARKSCAN_CODED=1 node tests/alignment.cjs
+node tests/workflow.cjs
 ```
 
 O teste usa Chrome instalado e câmera simulada. Cobre cadastro por upload, calibração, configurações, formatos de leitura, contraste, reposicionamento, desfazer, teclado, edição após recarga, tela móvel/ampliação, respostas reais (incluindo A, branco e múltipla), histórico, persistência após recarga, captura/liberação da câmera, imagem inválida, permissão negada, uso offline e alternativa localStorage. Não valida a câmera física nem a precisão em fotos reais.
@@ -145,6 +170,8 @@ Os testes também aceitam `MARKSCAN_URL` para validar a publicação, usando dad
 
 ## Detecção de referências e atribuição
 
-A detecção usa uma cópia local do [js-aruco](https://github.com/jcmellado/js-aruco), fixada na revisão `2203d4b5efb601c39054a341bf04702409699383`. Os avisos originais de licença e as adaptações estão em `js/vendor/`. A transformação, a validação geométrica e a geração das folhas ficam nos módulos `Alignment.js` e `SheetBuilder.js`.
+A detecção usa uma cópia local do [js-aruco](https://github.com/jcmellado/js-aruco), fixada na revisão `2203d4b5efb601c39054a341bf04702409699383`. Os avisos originais de licença e as adaptações estão em `js/vendor/`. O detector codificado continua disponível para modelos antigos. Os blocos sólidos usam contornos de pixels, filtragem de preenchimento e validação geométrica dos 16 vértices em `SolidReferences.js`; a transformação e a geração ficam em `Alignment.js` e `SheetBuilder.js`.
 
 O teste de alinhamento gera fotografias sintéticas com uma transformação independente do código de produção. Cobre giros de 90°/180°/270°, perspectiva, iluminação variável, referências ausentes/duplicadas/erradas, espelhamento, 100 questões com oito alternativas nos três formatos, perda das referências ao vivo, imagem original na evidência, edição do gabarito e uso offline. Esses testes não substituem a validação com impressão e câmera física.
+
+O teste `workflow.cjs` cobre versão, ajuda, persistência automática, importação em branco com respostas separadas, posicionamento de referências, PNG, correção de uma imagem invertida, restauração do modelo ativo, edição, troca/remoção da seleção e exclusão sem apagar o histórico. O teste de alinhamento também verifica que a faixa da nota não sobrepõe a câmera.

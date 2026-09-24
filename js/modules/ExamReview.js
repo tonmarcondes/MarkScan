@@ -15,12 +15,12 @@ export default class ExamReview {
 
   markup() {
     return `<div id="camera-panel" hidden>
+      <div id="live-hud" hidden><span class="live-badge">LEITURA AO VIVO · PRÉVIA</span>
+          <strong id="live-grade">Enquadre a prova</strong><span id="live-points"></span>
+        </div>
       <div id="camera-stage">
         <video id="camera-preview" autoplay muted playsinline></video>
         <canvas id="camera-guide" aria-hidden="true"></canvas>
-        <div id="live-hud" hidden><span class="live-badge">LEITURA AO VIVO · PRÉVIA</span>
-          <strong id="live-grade">Enquadre a prova</strong><span id="live-points"></span>
-        </div>
       </div>
       <p id="live-state">Alinhe as marcas aos contornos.</p>
       <div class="review-actions">
@@ -150,7 +150,7 @@ export default class ExamReview {
   async tick(generation) {
     if (!this.live || generation !== this.generation || this.pending || this.saved || this.saving) return;
     try {
-      if (!document.hidden && !document.getElementById('settings-dialog').open && !document.getElementById('sheet-dialog').open && !document.getElementById('print-sheet-dialog').open) {
+      if (!document.hidden && !document.getElementById('help-dialog').open && !document.getElementById('settings-dialog').open && !document.getElementById('sheet-dialog').open && !document.getElementById('print-sheet-dialog').open) {
         if (!this.app.camera.isActive) throw new Error('Câmera desconectada. Feche e abra a câmera novamente.');
         const image = this.app.camera.captureFrame({ aspectRatio: this.aspectRatio, maxDimension: 1280 });
         const candidate = await this.analyze(image, 'camera');
@@ -283,7 +283,7 @@ export default class ExamReview {
   }
 
   lockControls(locked) {
-    const ids = ['student-name', 'student-select', 'open-settings', 'btn-apply-template', 'edit-template', 'save-template', 'exam-file', 'template-file', 'exam-camera', 'template-camera', 'stop-camera', 'new-sheet', 'show-sheets'];
+    const ids = ['student-name', 'student-select', 'open-settings', 'template-select', 'delete-template', 'edit-template', 'save-template', 'exam-file', 'template-file', 'exam-camera', 'template-camera', 'stop-camera', 'new-sheet', 'show-sheets'];
     if (locked) this.disabledControls = new Map(ids.map(id => [id, document.getElementById(id).disabled]));
     for (const id of ids) document.getElementById(id).disabled = locked || (this.disabledControls?.get(id) ?? false);
   }

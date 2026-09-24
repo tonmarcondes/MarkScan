@@ -66,7 +66,8 @@ const assert = require('node:assert/strict');
     assert.equal(await page.evaluate(async () => (await app.storage.getHistory()).length), 1);
     await page.reload();
     await page.waitForFunction(() => document.querySelector('#template-select')?.options.length === 2);
-    await page.locator('#btn-apply-template').click();
+    await page.locator('#template-select').dispatchEvent('change');
+    await page.waitForFunction(() => !!app.currentTemplate);
     await page.waitForFunction(() => app.currentTemplate?.answers?.length === 4);
     // Saved images, independent positions and reading shapes remain editable.
     await page.locator('#edit-template').click();
@@ -108,11 +109,13 @@ const assert = require('node:assert/strict');
     assert.deepEqual(errors, []);
     // Permission denial must leave file upload operational.
     await page.evaluate(() => { navigator.mediaDevices.getUserMedia = async () => { throw new DOMException('Permissão negada', 'NotAllowedError'); }; });
-    await page.locator('#btn-apply-template').click();
+    await page.locator('#template-select').dispatchEvent('change');
+    await page.waitForFunction(() => !!app.currentTemplate);
     await page.waitForFunction(() => !!app.currentTemplate);
     await page.locator('#exam-camera').click();
     await page.waitForFunction(() => document.querySelector('#toast')?.textContent.includes('Permissão negada'));
-    await page.locator('#btn-apply-template').click();
+    await page.locator('#template-select').dispatchEvent('change');
+    await page.waitForFunction(() => !!app.currentTemplate);
     await page.waitForFunction(() => !!app.currentTemplate);
     await page.locator('#exam-file').setInputFiles(await image([0, 1, 2, 3]));
     await page.waitForFunction(() => app.studentAnswers?.join() === '0,1,2,3');

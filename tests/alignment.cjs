@@ -12,6 +12,7 @@ const assert = require('node:assert/strict');
     await page.locator('#open-settings').click();
     await page.locator('#student-mode').selectOption('none');
     await page.locator('#save-settings').click();
+    if (process.env.MARKSCAN_CODED) await page.evaluate(() => app.config.update({calibration:{referenceStyle:'coded'}}));
     await page.locator('#new-sheet').click();
     await page.locator('#sheet-name').fill('Prova com referências');
     await page.locator('#sheet-answers').fill('A B');
@@ -78,7 +79,7 @@ const assert = require('node:assert/strict');
       console.log(`PASS: ${mode}, reprojection ${result.alignment.reprojectionError}px, ${result.elapsed}ms`);
     }
     // Mark missing/incorrect/duplicated/mirrored pages must not silently fall back to a grid.
-    for (const failure of ['missing', 'wrong', 'duplicate', 'mirror']) {
+    for (const failure of (process.env.MARKSCAN_CODED ? ['missing', 'wrong', 'duplicate', 'mirror'] : ['missing', 'mirror'])) {
       const message = await page.evaluate(async failure => {
         let image = testSheet;
         if (failure === 'wrong') {
@@ -96,6 +97,16 @@ const assert = require('node:assert/strict');
       }, failure);
       assert.ok(message, `must reject ${failure}`);
     }
+    if (!process.env.MARKSCAN_CODED) assert.equal(await page.evaluate(async()=>{
+      for(const referenceThickness of [3,5,8,10]) {
+        const t=sheets.buildTemplate('Espessura de referência',{...app.config.get('calibration'),referenceThickness},originalTemplate.answers);
+        app.currentTemplate=t;
+        const img=(await sheets.svgImage(sheets.sheetSVG(t,true))).image;
+        const read=await app.scanner.processImage(photo(img,180));
+        if(read.answers.some((a,i)=>a!==originalTemplate.answers[i])) throw new Error(`Leitura com ${referenceThickness}px falhou`);
+      }
+      app.currentTemplate=originalTemplate;return true;
+    }),true);
     // Generated forms support multiple blocks and all response shapes.
     assert.equal(await page.evaluate(async () => {
       for (const shape of ['circle', 'square', 'rectangle']) {
@@ -132,6 +143,10 @@ const assert = require('node:assert/strict');
     await page.locator('#exam-camera').click();
     await page.waitForFunction(()=>app.review.candidate?.ready && app.review.candidate.grade===10);
     assert.match(await page.locator('#live-state').textContent(),/Folha alinhada/);
+    const hud=await page.locator('#live-hud').boundingBox(), video=await page.locator('#camera-stage').boundingBox();
+    assert.ok(hud.y+hud.height<=video.y, 'score must not overlap the camera');
+    const header=await page.locator('#app-header').boundingBox();
+    assert.ok(hud.y>=header.y+header.height,'score must remain visible below the app header');
     if(process.env.MARKSCAN_SCREENSHOT) await page.locator('#camera-panel').screenshot({path:process.env.MARKSCAN_SCREENSHOT.replace('.png','-camera.png')});
     await page.evaluate(()=>{videoPhoto=new ImageData(videoPhoto.width,videoPhoto.height);videoPhoto.data.fill(255);});
     await page.waitForFunction(()=>app.review.candidate===null);
@@ -147,7 +162,8 @@ const assert = require('node:assert/strict');
     await page.locator('#close-print-sheet').click();
     await page.evaluate(()=>navigator.serviceWorker.ready);await context.setOffline(true);await page.reload();
     await page.waitForFunction(()=>document.querySelector('#template-select')?.options.length===2);
-    await page.locator('#btn-apply-template').click();
+    await page.locator('#template-select').dispatchEvent('change');
+    await page.waitForFunction(() => !!app.currentTemplate);
     await page.waitForFunction(()=>!!app.currentTemplate?.alignment);
     await page.locator('#exam-file').setInputFiles({name:'offline.png',mimeType:'image/png',buffer:upload});
     await page.waitForFunction(()=>app.review.pending?.grade===9);

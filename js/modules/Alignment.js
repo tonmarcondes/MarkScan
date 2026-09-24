@@ -1,3 +1,4 @@
+import { detectSolid, markerCorners } from './SolidReferences.js';
 import AR from '../vendor/aruco.js';
 
 /** Solve a projective map from paired points; normalized inputs keep the solve well conditioned. */
@@ -59,7 +60,8 @@ export default class Alignment {
   constructor() { this.detector = new AR.Detector(); }
 
   align(image, definition) {
-    const detected = this.detector.detect(image);
+    const solid = definition.type === 'solid-v1';
+    const detected = solid ? detectSolid(image, definition, this.detector) : this.detector.detect(image);
     const matches = definition.markers.map(expected => detected.filter(marker => marker.id === expected.id));
     if (matches.some(markers => markers.length > 1)) throw new Error('Há referências repetidas. Mostre somente uma folha por vez.');
     const found = matches.filter(markers => markers.length === 1).length;
@@ -72,9 +74,9 @@ export default class Alignment {
       const corners = matches[i][0].corners.map(({ x, y }) => [x, y]);
       const size = Math.min(...corners.map((point, j) => distance(point, corners[(j + 1) % 4])));
       sizes.push(size);
-      if (size < 21) throw new Error('Aproxime a folha: as marcas de referência estão pequenas demais.');
+      if (size < (solid ? 3 : 21)) throw new Error('Aproxime a folha: as marcas de referência estão pequenas demais.');
       const r = definition.markerSize / 2;
-      const canonical = [[expected.x - r, expected.y - r], [expected.x + r, expected.y - r],
+      const canonical = solid ? markerCorners(expected) : [[expected.x - r, expected.y - r], [expected.x + r, expected.y - r],
         [expected.x + r, expected.y + r], [expected.x - r, expected.y + r]];
       canonical.forEach((point, j) => {
         from.push([point[0] / definition.width, point[1] / definition.height]);
@@ -87,7 +89,7 @@ export default class Alignment {
       return Math.hypot((estimated[0] - to[i][0]) * image.width, (estimated[1] - to[i][1]) * image.height);
     });
     const error = Math.sqrt(errors.reduce((sum, value) => sum + value * value, 0) / errors.length);
-    if (!Number.isFinite(error) || error > Math.max(2, Math.min(...sizes) * .09) || Math.max(...errors) > Math.min(...sizes) * .2) {
+    if (!Number.isFinite(error) || error > Math.max(solid ? 1.5 : 2, Math.min(...sizes) * .09) || Math.max(...errors) > (solid ? 2.5 : Math.min(...sizes) * .2)) {
       throw new Error('As referências não formam uma folha plana. Reduza a inclinação, alise a folha e melhore a iluminação.');
     }
     const quad = [[0, 0], [1, 0], [1, 1], [0, 1]].map(point => project(matrix, ...point));
