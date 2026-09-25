@@ -1,3 +1,4 @@
+const flow=require('./helpers.cjs');
 const { chromium } = require('playwright');
 const assert = require('node:assert/strict');
 
@@ -23,8 +24,9 @@ const assert = require('node:assert/strict');
     await page.locator('#print-sheet-dialog').waitFor({ state: 'visible' });
     assert.equal(await page.evaluate(() => app.currentTemplate.alignment.markers.length), 4);
     if (process.env.MARKSCAN_SCREENSHOT) await page.locator('#sheet-preview').screenshot({ path: process.env.MARKSCAN_SCREENSHOT });
+    await page.locator('#print-sheet-dialog details summary').click();
     const downloaded = page.waitForEvent('download'); await page.locator('#download-student').click();
-    assert.match((await downloaded).suggestedFilename(), /aluno.*\.svg$/);
+    assert.match((await downloaded).suggestedFilename(), /em-branco.*\.png$/);
     // Printing is an actual SVG page, not a screenshot of the application.
     const popupPromise = page.waitForEvent('popup');
     await page.locator('#print-student').click(); const popup = await popupPromise;
@@ -98,7 +100,7 @@ const assert = require('node:assert/strict');
       assert.ok(message, `must reject ${failure}`);
     }
     if (!process.env.MARKSCAN_CODED) assert.equal(await page.evaluate(async()=>{
-      for(const referenceThickness of [3,5,8,10]) {
+      for(const referenceThickness of [5,8,10]) {
         const t=sheets.buildTemplate('Espessura de referência',{...app.config.get('calibration'),referenceThickness},originalTemplate.answers);
         app.currentTemplate=t;
         const img=(await sheets.svgImage(sheets.sheetSVG(t,true))).image;
@@ -122,7 +124,9 @@ const assert = require('node:assert/strict');
     }), true);
 
     const upload = Buffer.from(await page.evaluate(() => imageFile(photo(testSheet))), 'base64');
+    await flow.capture(page);
     await page.locator('#exam-file').setInputFiles({name:'prova-perspectiva.png',mimeType:'image/png',buffer:upload});
+    await flow.approveImage(page);
     await page.waitForFunction(() => app.review.pending?.alignment && app.review.pending.grade === 10);
     await page.locator('#accept-exam').click(); await page.waitForFunction(() => !!app.review.saved);
     assert.equal(await page.evaluate(async () => {
@@ -141,18 +145,18 @@ const assert = require('node:assert/strict');
       };
     });
     await page.locator('#exam-camera').click();
-    await page.waitForFunction(()=>app.review.candidate?.ready && app.review.candidate.grade===10);
-    assert.match(await page.locator('#live-state').textContent(),/Folha alinhada/);
-    const hud=await page.locator('#live-hud').boundingBox(), video=await page.locator('#camera-stage').boundingBox();
-    assert.ok(hud.y+hud.height<=video.y, 'score must not overlap the camera');
-    const header=await page.locator('#app-header').boundingBox();
-    assert.ok(hud.y>=header.y+header.height,'score must remain visible below the app header');
-    if(process.env.MARKSCAN_SCREENSHOT) await page.locator('#camera-panel').screenshot({path:process.env.MARKSCAN_SCREENSHOT.replace('.png','-camera.png')});
+    assert.equal(await page.locator('#accept-exam').isVisible(),false);
+    await page.locator('#camera-stage').click();
+    await page.waitForFunction(()=>app.review.pending?.grade===10);
+    assert.equal(await page.locator('#camera-panel').isVisible(),false);
+    if(process.env.MARKSCAN_SCREENSHOT) await page.locator('#exam-preview').screenshot({path:process.env.MARKSCAN_SCREENSHOT.replace('.png','-camera.png')});
+    await page.locator('#retake-exam').click();
     await page.evaluate(()=>{videoPhoto=new ImageData(videoPhoto.width,videoPhoto.height);videoPhoto.data.fill(255);});
-    await page.waitForFunction(()=>app.review.candidate===null);
-    assert.equal(await page.locator('#accept-exam').isDisabled(),true);
-    assert.match(await page.locator('#live-state').textContent(),/0\/4/);
-    await page.locator('#stop-camera').click();
+    await page.waitForTimeout(150);await page.locator('#camera-stage').click();
+    await page.waitForFunction(()=>!!app.review.failedCapture);
+    assert.equal(await page.locator('#accept-exam').isVisible(),false);
+    assert.match(await page.locator('#scan-status').textContent(),/0\/4/);
+    await flow.models(page);
     // Editing the answer key keeps the marker IDs and the same template record.
     await page.locator('#edit-template').click();
     await page.locator('#sheet-answers').fill('B B C D A B C D A B');
@@ -165,9 +169,11 @@ const assert = require('node:assert/strict');
     await page.locator('#template-select').dispatchEvent('change');
     await page.waitForFunction(() => !!app.currentTemplate);
     await page.waitForFunction(()=>!!app.currentTemplate?.alignment);
+    await flow.capture(page);
     await page.locator('#exam-file').setInputFiles({name:'offline.png',mimeType:'image/png',buffer:upload});
+    await flow.approveImage(page);
     await page.waitForFunction(()=>app.review.pending?.grade===9);
     assert.deepEqual(errors,[]);
-    console.log('PASS: creator, downloads/print, 90/180/270, independent perspective + lighting, rejection gates, 100 questions/eight options/all shapes, live loss of references, original + rectified evidence, editing, offline.');
+    console.log('PASS: creator, downloads/print, 90/180/270, independent perspective + lighting, rejection gates, 100 questions/eight options/all shapes, tap capture, missing references rejected, original + rectified evidence, editing, offline.');
   } finally { await browser.close(); }
 })().catch(error=>{console.error(error);process.exit(1);});

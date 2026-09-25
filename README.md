@@ -1,149 +1,112 @@
-# MarkScan OMR · v1.3.0
+# MarkScan OMR · v1.4.0
 
-Aplicativo web para criar e corrigir folhas de respostas, usando imagens ou câmera. As folhas geradas pelo aplicativo têm **quatro blocos sólidos de referência e alinhamento automático por perspectiva**. Modelos antigos sem referências mantêm a calibração manual. O processamento acontece no navegador; gabaritos, configurações e histórico são armazenados localmente.
+Aplicativo estático para criar modelos de correção, mapear folhas e corrigir provas no navegador. Imagens, configurações, alunos, notas e evidências ficam no dispositivo. Não há backend de processamento.
 
-## Novidades da versão 1.3.0
+- Aplicativo: https://tonmarcondes.github.io/MarkScan/
+- Repositório: https://github.com/tonmarcondes/MarkScan
+- Versão no cabeçalho, ajuda pelo ícone **?** e histórico pelo botão **Histórico**.
 
-- Versão visível ao lado da marca e manual prático pelo botão **?**.
-- Selecionar um modelo já o ativa; o último modelo é restaurado ao reabrir.
-- Criação, edição e exclusão de modelos. Excluir um modelo preserva as notas e evidências do histórico.
-- Configurações válidas são persistidas automaticamente ao alterar os campos.
-- Nota e pontos ficam acima da câmera, sem cobrir a imagem.
-- Novas referências são blocos sólidos com espessura padrão de 5 px, ajustável na engrenagem.
-- Imagens próprias podem receber referências posicionadas pelo professor e ser exportadas como PNG.
+## Fluxo por aprovação
 
-A interface específica para celular, splash screen e compartilhamento adaptado por dispositivo ficam para uma próxima etapa.
+O app mostra somente a etapa atual:
 
-## Executar
+1. **Preparar o modelo:** selecionar um existente, criar uma folha ou importar uma imagem/PDF.
+2. **Conferir o modelo:** visualizar as versões preenchida e em branco; clicar em **Aprovar modelo e corrigir provas**.
+3. **Fotografar ou importar a prova:** tocar na imagem da câmera ou carregar um arquivo.
+4. **Conferir a correção:** examinar a fotografia corrigida, a nota, os pontos e o aluno.
+5. **Aceitar e salvar evidência:** registrar a nota e a imagem; depois usar **Próxima prova**.
 
-Na pasta do projeto:
+Selecionar um modelo já o ativa, sem botão adicional de aplicação. A aprovação da prévia libera a etapa de correção. O último modelo é restaurado ao abrir, mas a etapa de conferência continua disponível antes de começar. Voltar ao modelo fecha a câmera e descarta a prévia não aceita. Excluir um modelo não apaga notas nem evidências do histórico.
+
+## Configurações
+
+Todos os ajustes ficam na engrenagem. Campos válidos são salvos automaticamente ao alterar e sair do campo; seletores são salvos imediatamente. **Salvar configurações** também valida e fecha a janela. Campos inválidos não substituem os últimos valores válidos. Falhas de armazenamento são informadas.
+
+- Questões (1–100), alternativas (2–8), formato de leitura: círculo, quadrado ou retângulo.
+- Dimensões e limiar das áreas de amostragem. Elas devem ficar dentro das respostas impressas.
+- Cores, fonte, tamanho, contraste e ampliação dos números usados **somente no mapeamento**.
+- Espessura das referências: **5 px no mínimo**, 8 px como padrão novo, ou 10 px.
+- Pontuação por acerto, desconto por erro, pontos em branco e nota máxima.
+- Aluno por nome, lista ou sem identificação.
+
+A lista aceita um nome por linha ou `matrícula;nome`, colada ou carregada de `.txt`. A aparência do editor pode mudar sem alterar modelos salvos; a geometria de um modelo só muda ao editar e salvar. Dados pertencem ao navegador e à origem: localhost e GitHub Pages não compartilham armazenamento.
+
+## Criar uma folha
+
+1. Configure questões, alternativas e formato na engrenagem.
+2. Use **Criar folha com referências**, informe nome e respostas na ordem (`A B C D ...`).
+3. O app gera e valida o modelo, com todas as posições cadastradas automaticamente.
+4. Confira **Ver gabarito preenchido** e **Ver gabarito em branco**.
+5. Imprima ou compartilhe a versão em branco para os alunos. Guarde a preenchida para o professor.
+6. Aprove o modelo para ir à correção.
+
+Até 25 questões são organizadas por bloco, com até quatro blocos por folha. O próprio detector valida as referências e as respostas antes de cadastrar a folha.
+
+## Importar imagem ou PDF e mapear somente a área necessária
+
+1. Selecione PNG, JPEG, WebP, outro formato de imagem aceito pelo navegador ou **PDF**. Também é possível fotografar: abra a câmera e **toque na imagem**, sem botão de captura.
+2. No PDF, escolha a página. O limite de arquivo é 50 MB. PDFs protegidos por senha devem ser desbloqueados antes de importar.
+3. Use a página inteira ou toque em dois cantos para selecionar um recorte. Inclua todas as respostas desejadas e espaço para as referências. Clique em **Aprovar imagem e continuar**.
+4. Configure a grade. Clique no centro da primeira alternativa da primeira questão e no centro da última alternativa da última questão.
+5. Confira os números. Clique em um número e depois no novo centro para corrigir um ponto. Setas movem um pixel; Shift + seta move dez; Esc encerra a seleção. Há desfazer e reposicionamento dos extremos.
+6. Informe as respostas corretas no campo do editor ou deixe vazio para detectar os preenchimentos da imagem. Depois clique em **Aprovar mapeamento e continuar**.
+7. Em **Posicionar referências**, clique em espaços brancos nos cantos superior esquerdo, superior direito, inferior direito e inferior esquerdo, nesta ordem. Os blocos precisam ficar dentro da imagem, sem cobrir conteúdo. Para corrigir, reinicie o posicionamento. Remover referências permite salvar um modelo manual.
+8. Aprove e salve. Confira as prévias preenchida e em branco antes de imprimir ou compartilhar.
+
+Para modelos importados, **as versões para distribuição são recriadas apenas com as posições e formatos mapeados**. Enunciados, grafismos e preenchimentos da imagem original não são copiados. Assim a versão em branco não revela respostas da imagem importada. A imagem original continua salva no modelo para edição. Use as novas versões distribuídas para manter a mesma geometria.
+
+## Referências e orientação
+
+Os novos modelos usam quatro retângulos pretos sólidos com comprimentos diferentes. A espessura mínima de criação é 5 pixels na imagem; 8 pixels é o padrão recomendado. Os comprimentos são 3, 5, 7 e 9 vezes a espessura, em sentido horário a partir do canto superior esquerdo.
+
+Os 16 vértices validam a geometria e estimam uma transformação de perspectiva para uma folha plana. O app reconhece rotação, inclusive a folha invertida. Os quatro blocos precisam estar nítidos; na captura, a espessura deve ocupar ao menos 3 pixels. Aproxime a câmera e melhore a luz se as marcas estiverem pequenas. Maior espessura ajuda em folhas inteiras e fotos distantes.
+
+Blocos sólidos **não identificam qual modelo foi usado**: confira o modelo selecionado. Modelos anteriores com referências codificadas continuam usando os códigos originais; os antigos sem referências exigem o mesmo enquadramento e orientação da calibração. Modelos antigos já impressos não são alterados silenciosamente. Para mudar as referências, crie/reimprima uma folha atualizada.
+
+Referências precisam estar nas cópias físicas. Apenas acrescentá-las à tela não transforma provas antigas sem marcas em folhas alinháveis automaticamente. Recortes de provas já impressas devem preservar os quatro blocos existentes.
+
+## Fotografar, conferir e salvar
+
+- Na câmera, espere a imagem abrir e **toque nela para fotografar**. Enter ou espaço também funcionam quando a imagem tem foco.
+- A captura usa a resolução disponível, limitada a 2400 pixels no maior lado. Não reutiliza uma prévia reduzida de leitura contínua.
+- O app processa o quadro fotografado e mostra a imagem corrigida **sem números ou contornos sobrepostos**. A nota e o detalhamento ficam separados da imagem.
+- Se o alinhamento falhar, a fotografia e a mensagem ficam disponíveis; o aceite permanece bloqueado. Use **Fotografar novamente**. Não há fallback silencioso para coordenadas manuais em um modelo com referências.
+- Confira o aluno e clique em **Aceitar e salvar evidência**. Antes disso, a nota é apenas uma prévia.
+- A imagem e a nota usam o mesmo quadro. Mudar a folha diante da câmera após a captura não altera a evidência.
+- A câmera pode permanecer aberta entre alunos. **Próxima prova** limpa o nome ou avança na lista e volta à captura.
+- Arquivos de prova usam o mesmo fluxo de aprovação. PDF também permite escolher página e recortar antes da leitura.
+
+Nota, aluno, respostas, regras e evidência JPEG são salvos em uma única operação. Em folhas alinhadas, a evidência contém a imagem corrigida e o quadro original, além de nome, data, nota e detalhamento. Uma falha de armazenamento mantém a prévia para tentar novamente. O histórico é acessível sem selecionar um modelo.
+
+## Compartilhar, ver e imprimir
+
+Há ações separadas e adjacentes para **Compartilhar gabarito** e **Compartilhar em branco**, além das duas prévias. Os arquivos PNG são preparados antes do clique. Quando o navegador aceita compartilhamento de arquivos, o app abre a folha nativa de compartilhamento; caso contrário, baixa o PNG correspondente. Cancelar o compartilhamento nativo não baixa outro arquivo automaticamente.
+
+Em **Imprimir ou baixar**, há impressão e download de cada versão. A impressão usa SVG em uma página A4, permitindo também Salvar como PDF na janela do navegador. Preserve proporções, margens e os quatro blocos.
+
+## Executar, publicar e usar offline
 
 ```sh
 python3 -m http.server 8080
 ```
 
-Abra http://localhost:8080 em um navegador atualizado. Não abra `index.html` diretamente por `file://`: os módulos JavaScript precisam ser servidos por HTTP.
+Abra http://localhost:8080. Módulos ES precisam de HTTP; não abra `index.html` como arquivo local. Em outros dispositivos, câmera exige HTTPS e permissão do navegador. O site publicado usa HTTPS.
 
-Para acessar a câmera em outro dispositivo, publique em **HTTPS**. Um endereço HTTP de rede local (por exemplo, `http://192.168.x.x:8080`) não oferece o mesmo acesso à câmera que `localhost`. Autorize a câmera quando solicitado. A câmera só é ligada ao clicar no botão. Na leitura de provas, permanece aberta entre alunos; é desligada ao fechar a câmera ou sair da página. Na fotografia de gabaritos, é desligada após capturar. Upload de imagem continua disponível quando a câmera falha.
+O projeto funciona no GitHub Pages, branch `main`, pasta raiz, com caminhos relativos e `.nojekyll`. Não há chaves de API. Service worker guarda os arquivos do app e do leitor PDF após o primeiro carregamento completo, permitindo uso offline. O leitor PDF.js, worker, fontes, mapas de caracteres e WASM são locais, sem CDN durante o uso.
 
-## Configurações (engrenagem)
+Gabaritos e histórico usam IndexedDB, com alternativa localStorage; configurações usam localStorage. Limpar os dados do site remove os registros. Baixe as evidências que precisar guardar fora do navegador.
 
-Clique no ícone **⚙** do cabeçalho. Todas as configurações ficam nessa janela:
+## Limitações
 
-- **Grade:** quantidade de questões e alternativas.
-- **Área de leitura:** bolha/círculo, quadrado ou retângulo; diâmetro/largura, altura do retângulo e limiar de leitura. As dimensões são em pixels da imagem carregada. O formato define os pixels usados na correção, além do contorno exibido.
-- **Identificação sobre a imagem:** cor e espessura do contorno, traço contínuo/tracejado, cor dos números, fundo, tamanho, fonte e estilo do texto. O fundo é sólido e combinações sem contraste suficiente são recusadas.
-- **Ampliação:** ajustar à largura, 150%, 200% ou 300%. Em imagens ampliadas, role a área da imagem para alcançar outros pontos.
-- **Pontuação:** acerto, desconto por erro, pontos em branco e nota máxima.
-- **Alunos:** identificação por nome, lista pré-carregada ou sem identificação.
-
-Os campos válidos são salvos automaticamente ao alterar e sair do campo; seletores são salvos imediatamente. **Salvar configurações** também valida e fecha a janela. Fechar ou pressionar Esc mantém os ajustes já salvos. Campos inválidos exibem uma mensagem e não substituem as últimas configurações válidas. A aparência vale para as imagens exibidas; a geometria e o limiar de um gabarito salvo só mudam quando ele é editado e salvo novamente.
-
-## Criar gabaritos e folhas com alinhamento automático
-
-1. Na engrenagem, defina a quantidade de questões (1–100), alternativas (2–8) e o formato: bolha, quadrado ou retângulo.
-2. Clique em **Criar folha com referências**, dê um nome e informe as respostas corretas na ordem, por exemplo `A B C D A`.
-3. O aplicativo gera o gabarito preenchido, cadastra as posições de leitura e aplica o modelo automaticamente. Não é necessário clicar na primeira e na última bolha.
-4. Em **Imprimir / baixar folhas**, imprima a **folha do aluno**, em branco, para distribuir. O **gabarito do professor** tem as respostas preenchidas e deve ficar separado.
-5. As folhas podem ser baixadas em SVG (vetorial), ou impressas em A4 pelo navegador, inclusive usando Salvar como PDF na janela de impressão. Mantenha as quatro marcas visíveis, sem recortar as margens.
-
-As quatro referências são retângulos pretos sólidos, de espessura padrão de 5 pixels na imagem e comprimentos de 15, 25, 35 e 45 pixels, em sentido horário a partir do canto superior esquerdo. A engrenagem também oferece espessuras de 3, 8 e 10 pixels. Os comprimentos diferentes permitem reconhecer a orientação, inclusive de cabeça para baixo. Os 16 vértices são usados para validar e estimar a transformação de perspectiva, normalizando a imagem antes de ler as respostas. Na captura, a espessura precisa ocupar ao menos 3 pixels nítidos; marcas menores exigem aproximação e boa iluminação.
-
-O professor deve selecionar o modelo correto: **blocos sólidos não identificam o modelo**. Duas folhas com a mesma geometria de referências podem ser alinhadas, mesmo com respostas corretas diferentes. Modelos antigos com marcas codificadas continuam usando seus códigos e detector anteriores. **Editar modelo** permite alterar nome e respostas de um modelo gerado mantendo suas referências e geometria; isso não altera registros de correções já aceitas. Para mudar o número de questões, alternativas ou o formato impresso, crie uma nova folha.
-
-O criador organiza até 25 questões por bloco, usando até quatro blocos na mesma página. O tamanho das áreas de amostragem é limitado ao interior das marcas impressas. A impressão é validada pelo próprio detector antes de salvar o modelo.
-
-## Usar uma imagem própria com referências
-
-1. Importe uma imagem ou fotografe o formulário. Para distribuir uma folha em branco, use uma imagem sem respostas preenchidas.
-2. Configure questões e alternativas na engrenagem e clique na primeira e na última área, como na calibração manual abaixo. Confira e ajuste os pontos individuais.
-3. Informe as **Respostas corretas** no campo do editor, por exemplo `A B C D`. Se a imagem já estiver preenchida, deixe o campo vazio para detectar as respostas nos pixels.
-4. Clique em **Posicionar referências** e marque quatro espaços brancos: superior esquerdo, superior direito, inferior direito e inferior esquerdo. Os blocos aparecem durante os cliques. Para corrigir, inicie o posicionamento novamente.
-5. Deixe margem branca ao redor dos blocos e mantenha-os dentro da imagem. O app recusa blocos que cubram conteúdo ou que não permitam validar o alinhamento. **Remover referências** retorna ao modo manual.
-6. Salve o modelo e abra **Imprimir / baixar folhas**. Use **Baixar imagem com referências (PNG)** para inserir a imagem na prova, preservando proporções e os quatro blocos. A impressão da imagem também está disponível.
-
-O arquivo preserva o conteúdo da imagem original: respostas já preenchidas não são apagadas automaticamente. A imagem original e as posições ficam guardadas para edição posterior. Alterar geometria ou referências exige atualizar as cópias impressas. O alinhamento só funciona nas cópias que contêm as referências exportadas.
-
-## Alinhamento durante a leitura
-
-- Mostre a folha inteira à câmera. Não é necessário coincidir manualmente a folha com uma grade fixa.
-- O contorno verde acompanha a página detectada, e as áreas de leitura são projetadas sobre as respostas. A nota usa a imagem já corrigida para posição, escala, rotação e perspectiva.
-- A leitura e o aceite ficam bloqueados se faltar uma marca, o conjunto for ambíguo (ou houver códigos repetidos/errados nos modelos antigos), a folha estiver cortada, as referências estiverem pequenas demais ou a geometria for inconsistente. Perder as referências remove a nota prévia, evitando aceitar um quadro antigo.
-- **Congelar para conferir** mostra a folha endireitada. A evidência salva contém essa imagem e, abaixo, o quadro original antes da correção, além dos dados da nota.
-- A mesma correção automática funciona no upload de fotos das folhas geradas.
-
-As referências precisam estar **impressas na folha**. Desenhá-las apenas na tela sobre uma foto antiga não oferece alinhamento automático. Folhas antigas sem marcas continuam no modo manual abaixo.
-
-## Cadastrar e corrigir a calibração manual do gabarito
-
-1. Selecione a imagem ou clique em **Fotografar gabarito**, e informe um nome.
-2. Na engrenagem, confira quantidade de questões, alternativas, formato e dimensões da área de leitura.
-3. Clique no centro da primeira área (questão 1, alternativa A). **O número 1 aparece imediatamente**, acompanhado da instrução para o segundo clique.
-4. Clique no centro da última área (última alternativa da última questão). A grade será preenchida com números sequenciais, da esquerda para a direita e de cima para baixo. A lista abaixo associa cada número à questão e à alternativa.
-5. Se um ponto estiver errado, clique no número na imagem ou na lista, depois clique no novo centro. As **setas** ajustam um pixel; **Shift + seta** ajusta dez pixels. **Esc** cancela a seleção. **Desfazer** recupera a posição anterior.
-6. **Reposicionar primeira/última** recalcula a grade a partir dos extremos e remove ajustes individuais; **Refazer grade** volta ao primeiro clique. Alterar a quantidade de questões/alternativas na engrenagem também remove os ajustes individuais.
-7. Confira as áreas de leitura e as respostas detectadas. Cada contorno deve ficar dentro da marca impressa, sem incluir sua borda. Clique em **Salvar Gabarito**. Questões em branco ou ambíguas impedem o salvamento, a menos que você informe as respostas corretas no campo do editor.
-
-A imagem original, a calibração, as posições ajustadas e as respostas ficam salvas. Os números são apenas sobreposições visuais e nunca entram na leitura dos pixels. Para corrigir mais tarde, selecione o gabarito e clique em **Editar modelo**, faça os ajustes e salve; isso atualiza o mesmo registro.
-
-Gabaritos cadastrados antes desta versão não guardavam a imagem original: nesse caso, é necessário selecionar a imagem e cadastrá-los novamente. Para corrigir provas, basta selecionar um gabarito salvo. A seleção já o ativa; não há um segundo botão de aplicação. **Excluir modelo** pede confirmação e remove apenas o modelo, preservando o histórico.
-
-## Correção rápida com câmera
-
-1. Selecione o gabarito e clique em **Abrir câmera para prova**.
-2. Nas folhas com referências, mostre os quatro cantos. Nos modelos manuais, alinhe a folha aos contornos e números. A câmera mostra **nota e pontos ao vivo**; há um intervalo de 300 ms entre processamentos, além do tempo de detecção/leitura, que varia conforme o dispositivo.
-3. Aguarde três leituras iguais e confira o resultado. “Leitura estável” significa repetição das respostas, não garantia de que a marcação do aluno esteja nítida. Nas folhas com referências, também é exigido alinhamento válido; no modo manual, uma folha fora de posição pode produzir leituras estáveis.
-4. Informe o aluno, se configurado, e clique em **Aceitar e salvar evidência**. A nota permanece apenas como prévia até esse aceite.
-5. Clique em **Próxima prova**. A câmera continua aberta; o nome digitado é limpo, ou a lista avança para o próximo aluno. Cada aceite cria um novo registro, inclusive se você selecionar novamente um aluno já corrigido.
-
-**Congelar para conferir** mantém um quadro e permite examinar o detalhamento antes de aceitar. **Voltar à leitura ao vivo** descarta essa prévia e retoma a câmera. A nota e a imagem usam sempre o mesmo quadro, mesmo que outra folha passe pela câmera durante o salvamento.
-
-Nas folhas com referências, a câmera mostra o quadro completo e o app corrige a perspectiva pela posição dos marcadores. No modo manual, a visualização é recortada ao centro para a proporção do gabarito (quando sua imagem está disponível), sem correção de perspectiva.
-
-## Alunos, notas e evidências
-
-Na engrenagem, escolha **Sem identificação**, **Digitar nome** (padrão) ou **Selecionar de uma lista**. No modo configurado com identificação, o aceite exige um nome ou aluno selecionado.
-
-A lista pode ser colada ou carregada de um arquivo `.txt`, com um aluno por linha:
-
-```text
-Ana Silva
-2026002;Bruno Souza
-```
-
-Para nomes iguais, use matrículas diferentes. O carregamento da lista só é confirmado ao salvar as configurações. Você também pode definir a nota máxima (padrão 10); a nota é a pontuação obtida dividida pela pontuação máxima, multiplicada por esse valor. Descontos podem produzir nota negativa.
-
-Ao aceitar, são salvos juntos:
-
-- Aluno/matrícula, gabarito, respostas lidas, respostas corretas e regras usadas.
-- Pontos, nota, horário da captura e do aceite.
-- Imagem JPEG da prova com cabeçalho identificando aluno, nota, data e registro, além do detalhamento por questão. Os pixels vêm do quadro aceito, sem os números sobrepostos de calibração. Nas folhas alinhadas automaticamente, a imagem corrigida e o quadro original ficam juntos na evidência; os parâmetros de alinhamento também são guardados no registro.
-
-Em **Correções aceitas**, use **Ver imagem** para consultar a evidência e **Baixar imagem** para guardar ou entregar o arquivo. A nota não é salva se o armazenamento da imagem falhar; a prévia fica disponível para tentar novamente. Registros de versões antigas, que não guardavam evidências, continuam aparecendo no histórico.
-
-## Corrigir por arquivo
-
-Selecione o gabarito e a imagem da prova, confira o aluno e as respostas, e clique em **Aceitar e salvar evidência**. Upload usa o mesmo histórico e o mesmo processo de confirmação da câmera.
-
-Use PNG, JPEG ou outro formato de imagem aceito pelo navegador. PDF não é aceito. Se HEIC não abrir, converta para JPEG. Imagens de arquivo são reduzidas para no máximo 1800 pixels no maior lado; a leitura ao vivo usa até 1280 pixels para manter a velocidade.
-
-## Limitações da leitura
-
-- A correção geométrica usa os quatro blocos sólidos dos modelos novos, ou as quatro marcas codificadas dos modelos antigos. Não há reconhecimento de qualquer formato de prova, QR code ou marca arbitrária. Blocos sólidos não verificam a identidade do modelo.
-- A transformação corrige perspectiva de uma folha plana. Papel curvado, dobras, distorção óptica forte, reflexos, sombras e desfoque podem impedir a leitura ou reduzir a precisão. A verificação geométrica não substitui a conferência da nota.
-- Modelos antigos, sem referências, exigem o mesmo formulário, enquadramento e orientação usados na calibração. A grade inicial manual tem uma questão por linha; seus pontos podem ser ajustados individualmente.
-- Os blocos de questões são suportados automaticamente nas folhas geradas, cujas posições já são conhecidas. Não existe detecção automática de bolhas em um formulário arbitrário.
-- O motor compara a escuridão no interior das áreas de resposta. Confira os resultados e teste com provas conhecidas e a câmera física antes de corrigir em lote.
-
-## Offline e armazenamento
-
-O service worker guarda os arquivos do aplicativo após o primeiro acesso bem-sucedido por localhost ou HTTPS, permitindo reabrir offline. O cache usa caminhos relativos, inclusive para instalações em subpastas. A biblioteca de detecção é incluída no próprio projeto e também fica no cache; não há CDN nem downloads externos durante a leitura.
-
-Gabaritos (incluindo suas imagens originais), histórico e evidências usam IndexedDB, com alternativa em localStorage quando IndexedDB está indisponível. A pontuação fica em localStorage. Os dados pertencem ao navegador e à origem utilizados; mudar porta, domínio ou navegador não transfere os dados. Limpar dados do site remove os registros.
+- A transformação corrige perspectiva de papel plano; não corrige curvatura, dobras ou distorção óptica forte.
+- Sombras, desfoque, reflexos e marcas pequenas podem impedir a leitura. É necessário validar com provas conhecidas e a câmera física antes de corrigir em lote.
+- A leitura usa escuridão nas áreas mapeadas, não reconhecimento de qualquer formulário. O mapeamento manual começa com uma questão por linha; os pontos podem ser ajustados individualmente.
+- Importação de imagem é limitada a 1800 pixels; páginas PDF são renderizadas até 2400 pixels. HEIC depende do navegador: converta se não abrir.
+- A interface exclusiva para celular e splash screen continuam como etapa futura. O compartilhamento já usa a capacidade disponível em cada navegador.
 
 ## Testes
 
-Com o servidor na porta 8080, Node.js 18+ e Playwright disponível:
+Com Node 18+, Playwright/Chrome e servidor na porta 8080:
 
 ```sh
 node tests/browser.cjs
@@ -151,27 +114,14 @@ node tests/review.cjs
 node tests/alignment.cjs
 MARKSCAN_CODED=1 node tests/alignment.cjs
 node tests/workflow.cjs
+node tests/documents.cjs
 ```
 
-O teste usa Chrome instalado e câmera simulada. Cobre cadastro por upload, calibração, configurações, formatos de leitura, contraste, reposicionamento, desfazer, teclado, edição após recarga, tela móvel/ampliação, respostas reais (incluindo A, branco e múltipla), histórico, persistência após recarga, captura/liberação da câmera, imagem inválida, permissão negada, uso offline e alternativa localStorage. Não valida a câmera física nem a precisão em fotos reais.
+`MARKSCAN_URL` permite executar contra o site publicado. Os testes usam dados fictícios, imagens sintéticas, PDF de duas páginas e câmera simulada. Cobrem calibração, configurações, aprovação por etapas, PDF/recorte, compartilhamento nativo simulado e fallback, variantes branca/preenchida, captura por toque, pixels da revisão sem sobreposição, evidências atômicas, falhas/repetição, edição/exclusão, recarga e offline. O alinhamento é testado com rotações e transformações de perspectiva independentes do código de produção. Não substituem testes de impressão e câmera física.
 
-## GitHub Pages
+## Bibliotecas e arquitetura
 
-O aplicativo é estático e pode ser publicado no GitHub Pages, sem backend ou chaves de API. Use a branch `main`, pasta raiz, como origem de publicação. O arquivo `.nojekyll` permite servir os arquivos diretamente.
+JavaScript com módulos ES, HTML e CSS, sem framework de interface. `App` conecta os módulos; `Template`/`Storage` cuidam dos dados; `Scanner`/`Alignment`/`SolidReferences` processam; `DocumentImport` cuida de páginas e recortes; `ExamReview` coordena captura, conferência e aceite.
 
-- Repositório: https://github.com/tonmarcondes/MarkScan
-- Endereço do projeto: https://tonmarcondes.github.io/MarkScan/
-- Os caminhos de módulos e cache são relativos, incluindo funcionamento na subpasta `/MarkScan/`.
-- A câmera requer permissão do navegador; o endereço publicado usa HTTPS.
-- Alunos, notas, fotos e gabaritos permanecem no navegador. Publicar o código não publica esses dados.
-- `localhost` e GitHub Pages são origens diferentes: os dados cadastrados localmente não aparecem automaticamente no endereço publicado. Limpar dados do navegador remove as evidências; baixe as imagens que precisar conservar.
-
-Os testes também aceitam `MARKSCAN_URL` para validar a publicação, usando dados fictícios em um navegador isolado. O teste de revisão cobre nota ao vivo, identificação obrigatória, importação de lista, evidência do quadro exato, prevenção de duplo aceite, congelamento, falha/repetição de salvamento, transação atômica, histórico após recarga/offline e download. A câmera física e a precisão em fotos reais precisam ser verificadas no dispositivo de uso.
-
-## Detecção de referências e atribuição
-
-A detecção usa uma cópia local do [js-aruco](https://github.com/jcmellado/js-aruco), fixada na revisão `2203d4b5efb601c39054a341bf04702409699383`. Os avisos originais de licença e as adaptações estão em `js/vendor/`. O detector codificado continua disponível para modelos antigos. Os blocos sólidos usam contornos de pixels, filtragem de preenchimento e validação geométrica dos 16 vértices em `SolidReferences.js`; a transformação e a geração ficam em `Alignment.js` e `SheetBuilder.js`.
-
-O teste de alinhamento gera fotografias sintéticas com uma transformação independente do código de produção. Cobre giros de 90°/180°/270°, perspectiva, iluminação variável, referências ausentes/duplicadas/erradas, espelhamento, 100 questões com oito alternativas nos três formatos, perda das referências ao vivo, imagem original na evidência, edição do gabarito e uso offline. Esses testes não substituem a validação com impressão e câmera física.
-
-O teste `workflow.cjs` cobre versão, ajuda, persistência automática, importação em branco com respostas separadas, posicionamento de referências, PNG, correção de uma imagem invertida, restauração do modelo ativo, edição, troca/remoção da seleção e exclusão sem apagar o histórico. O teste de alinhamento também verifica que a faixa da nota não sobrepõe a câmera.
+- [PDF.js](https://mozilla.github.io/pdf.js/examples/), versão 6.3.289 da distribuição oficial `pdfjs-dist`, Apache-2.0. Arquivos sem modificação em `js/vendor/pdfjs/`.
+- [js-aruco](https://github.com/jcmellado/js-aruco), revisão `2203d4b5efb601c39054a341bf04702409699383`. Avisos e adaptações em `js/vendor/`. Mantém o detector codificado legado e utilitários de contornos.

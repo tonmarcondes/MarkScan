@@ -2,6 +2,7 @@ import CV from '../vendor/cv.js';
 import { homography, project } from './Alignment.js';
 
 export function solidDefinition(width, height, thickness = 5, points = null) {
+  thickness = Math.max(5, Number(thickness) || 8);
   const inset = Math.max(32, thickness * 6);
   return { type: 'solid-v1', width, height, markerSize: thickness,
     markers: (points || [[inset, inset], [width-inset,inset], [width-inset,height-inset], [inset,height-inset]])

@@ -1,4 +1,3 @@
-import { project } from './Alignment.js';
 import { parseRoster } from './Roster.js';
 import { createEvidence } from './Evidence.js';
 
@@ -18,14 +17,12 @@ export default class ExamReview {
       <div id="live-hud" hidden><span class="live-badge">LEITURA AO VIVO · PRÉVIA</span>
           <strong id="live-grade">Enquadre a prova</strong><span id="live-points"></span>
         </div>
-      <div id="camera-stage">
+      <div id="camera-stage" role="button" tabindex="0" aria-label="Toque na imagem para fotografar">
         <video id="camera-preview" autoplay muted playsinline></video>
         <canvas id="camera-guide" aria-hidden="true"></canvas>
       </div>
       <p id="live-state">Alinhe as marcas aos contornos.</p>
       <div class="review-actions">
-        <button id="btn-scan" class="btn danger">Capturar imagem</button>
-        <button id="freeze-exam" class="btn secondary" hidden>Congelar para conferir</button>
         <button id="stop-camera" class="btn secondary">Fechar câmera</button>
       </div>
     </div>
@@ -34,21 +31,21 @@ export default class ExamReview {
       <label id="student-list-field" hidden>Aluno da lista<select id="student-select"><option value="">Selecione um aluno</option></select></label>
       <p id="student-help"></p>
     </div>
-    <div class="canvas-viewport"><canvas id="exam-preview" hidden></canvas></div>
+    <p id="review-grade" class="review-grade" role="status" hidden></p><div class="canvas-viewport"><canvas id="exam-preview" hidden></canvas></div>
     <div id="scan-status" class="scan-status" role="status"></div>
     <div id="review-actions" class="review-actions" hidden>
       <button id="accept-exam" class="btn primary" disabled>Aceitar e salvar evidência</button>
-      <button id="retake-exam" class="btn secondary" hidden>Voltar à leitura ao vivo</button>
+      <button id="retake-exam" class="btn secondary" hidden>Fotografar novamente</button>
       <button id="next-exam" class="btn primary" hidden>Próxima prova</button>
       <button id="download-current-evidence" class="btn secondary" hidden>Baixar evidência</button>
     </div>
     <div id="results-panel" class="results-panel"></div>
-    <section class="history-section" aria-labelledby="history-title">
+    <details class="history-section"><summary>Ver correções aceitas</summary>
       <div class="history-heading"><h3 id="history-title">Correções aceitas</h3><button id="refresh-history" class="btn secondary">Atualizar histórico</button></div>
       <p>Notas e imagens ficam neste navegador. Baixe a evidência para guardá-la fora do dispositivo.</p>
       <div id="history-list"></div>
       <button id="more-history" class="btn secondary" hidden>Mostrar mais</button>
-    </section>
+    </details>
     <dialog id="evidence-dialog" aria-labelledby="evidence-title"><div class="settings-heading"><h2 id="evidence-title">Evidência salva</h2><button id="close-evidence" class="btn secondary" aria-label="Fechar evidência">✕</button></div>
       <img id="evidence-image" alt="Imagem da prova aceita com aluno, nota, data e respostas">
       <button id="download-evidence" class="btn primary">Baixar imagem</button>
@@ -57,7 +54,6 @@ export default class ExamReview {
 
   bind() {
     document.getElementById('accept-exam').addEventListener('click', () => this.accept());
-    document.getElementById('freeze-exam').addEventListener('click', () => this.freeze());
     document.getElementById('retake-exam').addEventListener('click', () => this.resume());
     document.getElementById('next-exam').addEventListener('click', () => this.next());
     document.getElementById('download-current-evidence').addEventListener('click', () => this.download(this.saved));
@@ -76,7 +72,7 @@ export default class ExamReview {
 
   refreshIdentity() {
     const mode = this.app.config.get('students.mode');
-    document.getElementById('student-panel').hidden = mode === 'none';
+    document.getElementById('student-panel').hidden = mode === 'none' || !this.pending || !!this.saved;
     document.getElementById('student-name-field').hidden = mode !== 'name';
     document.getElementById('student-list-field').hidden = mode !== 'list';
     const select = document.getElementById('student-select'), previous = select.value;
@@ -104,7 +100,7 @@ export default class ExamReview {
   invalidate() {
     if (this.saving) return;
     this.generation++; clearTimeout(this.timer);
-    this.candidate = null; this.pending = null; this.saved = null;
+    this.candidate = null; this.pending = null; this.saved = null; this.failedCapture=null;
     this.signature = ''; this.stableCount = 0;
     this.updateActions();
   }
@@ -116,13 +112,14 @@ export default class ExamReview {
     document.getElementById('camera-stage').style.aspectRatio = String(this.aspectRatio);
     document.getElementById('camera-stage').style.setProperty('--camera-aspect', this.aspectRatio);
     document.getElementById('camera-panel').classList.add('exam-live');
-    document.getElementById('btn-scan').hidden = true;
-    document.getElementById('freeze-exam').hidden = false;
-    document.getElementById('live-hud').hidden = false;
+    document.getElementById('live-hud').hidden = true;
+    document.getElementById('camera-stage').hidden = false;
+    document.getElementById('camera-panel').hidden = false;
+    document.getElementById('live-state').textContent=this.app.currentTemplate.alignment?'Inclua as quatro referências e toque na imagem para fotografar.':'Mantenha o mesmo enquadramento do modelo e toque na imagem para fotografar.';
     document.getElementById('exam-preview').hidden = true;
     document.getElementById('results-panel').replaceChildren();
-    document.getElementById('scan-status').textContent = this.app.currentTemplate.alignment ? 'Mostre os quatro cantos. A folha será alinhada automaticamente antes da leitura.' : 'Alinhe a folha aos contornos. A nota só será registrada ao aceitar.';
-    this.drawGuide(); this.updateActions(); this.tick(this.generation);
+    document.getElementById('scan-status').textContent = this.app.currentTemplate.alignment ? 'Mostre os quatro blocos, toque para fotografar e confira a correção.' : 'Modelo sem referências: mantenha a mesma posição da imagem cadastrada e toque para fotografar.';
+    this.drawGuide(); this.updateActions();
   }
 
   stop() {
@@ -131,8 +128,6 @@ export default class ExamReview {
     document.getElementById('camera-panel').classList.remove('exam-live');
     document.getElementById('camera-stage').style.aspectRatio = '';
     document.getElementById('live-hud').hidden = true;
-    document.getElementById('btn-scan').hidden = false;
-    document.getElementById('freeze-exam').hidden = true;
     this.updateActions();
   }
 
@@ -147,33 +142,6 @@ export default class ExamReview {
       template: copy(template), scoringRules: copy(this.app.config.get('scoring')) };
   }
 
-  async tick(generation) {
-    if (!this.live || generation !== this.generation || this.pending || this.saved || this.saving) return;
-    try {
-      if (!document.hidden && !document.getElementById('help-dialog').open && !document.getElementById('settings-dialog').open && !document.getElementById('sheet-dialog').open && !document.getElementById('print-sheet-dialog').open) {
-        if (!this.app.camera.isActive) throw new Error('Câmera desconectada. Feche e abra a câmera novamente.');
-        const image = this.app.camera.captureFrame({ aspectRatio: this.aspectRatio, maxDimension: 1280 });
-        const candidate = await this.analyze(image, 'camera');
-        if (!this.live || generation !== this.generation || this.pending || this.saved || this.saving) return;
-        const signature = candidate.answers.join(',');
-        this.stableCount = signature === this.signature ? this.stableCount + 1 : 1;
-        this.signature = signature;
-        candidate.ready = this.stableCount >= 3;
-        candidate.observedAt = performance.now();
-        this.candidate = candidate;
-        this.drawGuide();
-        const blank = candidate.answers.every(answer => answer === -1);
-        const ambiguous = candidate.answers.includes(-2);
-        this.hud(candidate, !candidate.ready ? 'Estabilizando leitura…' : blank ? 'Nenhuma marca detectada. Confira o enquadramento ou a prova em branco.' : ambiguous ? 'Há marcações múltiplas. Confira antes de aceitar.' : 'Leitura estável · confira e aceite.');
-        this.updateActions();
-      }
-    } catch (error) {
-      this.candidate = null; this.stableCount = 0; this.signature = '';
-      this.hud(null, error.message); this.drawGuide(); this.updateActions();
-    }
-    if (this.live && generation === this.generation && !this.pending && !this.saved) this.timer = setTimeout(() => this.tick(generation), 300);
-  }
-
   hud(candidate, message) {
     document.getElementById('live-grade').textContent = candidate ? `Nota ${format(candidate.grade)} / ${format(candidate.gradeScale)}` : 'Enquadre a prova';
     document.getElementById('live-points').textContent = candidate ? `${format(candidate.score.score)} / ${format(candidate.score.total)} pontos` : '';
@@ -181,31 +149,29 @@ export default class ExamReview {
   }
 
   drawGuide() {
-    const canvas = document.getElementById('camera-guide'), template = this.app.currentTemplate;
-    const stage = document.getElementById('camera-stage');
-    if (!template || !this.live) return;
-    canvas.width = Math.max(1, stage.clientWidth); canvas.height = Math.max(1, stage.clientHeight);
-    const region = template.region || { shape: 'circle', width: template.radius * 2, height: template.radius * 2 * canvas.width / canvas.height };
-    if (!template.alignment) { this.ui._drawPositions(canvas, template.layout, region); return; }
-    const metadata = this.candidate?.alignment;
-    if (!metadata) return;
-    const ctx = canvas.getContext('2d');
-    const map = (x, y) => { const point = project(metadata.matrix, x, y); return [point[0] * canvas.width, point[1] * canvas.height]; };
-    ctx.strokeStyle = '#00e59b'; ctx.lineWidth = 2;
-    ctx.beginPath(); metadata.quad.forEach(([x, y], index) => index ? ctx.lineTo(x * canvas.width, y * canvas.height) : ctx.moveTo(x * canvas.width, y * canvas.height)); ctx.closePath(); ctx.stroke();
-    const size = template.imageSize;
-    const points = this.app.omr.detectBubbles(size, template.layout);
-    for (const [px, py] of points) {
-      const nx = px / size.width, ny = py / size.height;
-      const count = region.shape === 'circle' ? 16 : 4;
-      ctx.beginPath();
-      for (let i = 0; i < count; i++) {
-        const offset = count === 4 ? [[-1, -1], [1, -1], [1, 1], [-1, 1]][i] : [Math.cos(i * Math.PI * 2 / count), Math.sin(i * Math.PI * 2 / count)];
-        const point = map(nx + offset[0] * region.width / 2, ny + offset[1] * region.height / 2);
-        if (!i) ctx.moveTo(...point); else ctx.lineTo(...point);
-      }
-      ctx.closePath(); ctx.stroke();
-    }
+    const canvas=document.getElementById('camera-guide');
+    canvas.getContext('2d').clearRect(0,0,canvas.width,canvas.height);
+  }
+
+  async capture() {
+    if(this.capturing || this.saving || this.pending || this.saved) return;
+    if(!this.app.camera.isActive){document.getElementById('live-state').textContent='Câmera desconectada. Feche e abra a câmera novamente.';return;}
+    this.capturing=true; this.generation++; const generation=this.generation;
+    let image;
+    try {
+      image=this.app.camera.captureFrame({aspectRatio:this.aspectRatio,maxDimension:2400});
+      document.getElementById('live-state').textContent='Fotografia capturada. Alinhando e lendo…';
+      const candidate=await this.analyze(image,'camera');
+      if(generation!==this.generation)return;
+      candidate.ready=true;this.pending=candidate;this.candidate=candidate;this.showFrozen(candidate);
+      document.getElementById('scan-status').textContent='Confira a fotografia, a nota e o aluno. Aprove para salvar a evidência.';
+    } catch(error) {
+      if(generation!==this.generation)return;
+      this.failedCapture=image || true;this.ui.setPhase('review');
+      document.getElementById('camera-panel').hidden=true;
+      if(image){const c=document.getElementById('exam-preview');c.width=image.width;c.height=image.height;c.hidden=false;c.getContext('2d').putImageData(image,0,0);this.ui._sizeCanvas(c);}
+      document.getElementById('scan-status').textContent=`Não foi possível alinhar esta fotografia: ${error.message} Fotografe novamente com os quatro blocos maiores e nítidos.`;
+    } finally {this.capturing=false;this.updateActions();}
   }
 
   async readUpload(image) {
@@ -229,33 +195,28 @@ export default class ExamReview {
     const canvas = document.getElementById('exam-preview');
     canvas.width = candidate.image.width; canvas.height = candidate.image.height; canvas.hidden = false;
     this.ui._sizeCanvas(canvas); canvas.getContext('2d').putImageData(candidate.image, 0, 0);
-    const template = candidate.template;
-    this.ui._drawPositions(canvas, template.layout, template.region || { shape: 'circle', width: template.radius * 2, height: template.radius * 2 * canvas.width / canvas.height });
+    this.ui.setPhase('review');
+    document.getElementById('camera-panel').hidden=true;
+    document.getElementById('review-grade').textContent=`Nota ${format(candidate.grade)} / ${format(candidate.gradeScale)} · ${format(candidate.score.score)} / ${format(candidate.score.total)} pontos`;
+    document.getElementById('review-grade').hidden=false;
     this.ui._renderResults(candidate.score, candidate.answers);
-  }
-
-  freeze() {
-    if (this.saving || this.saved || !this.candidate?.ready) return;
-    this.pending = this.candidate; this.generation++; clearTimeout(this.timer);
-    this.showFrozen(this.pending); this.hud(this.pending, 'Imagem congelada · confirme o aluno antes de aceitar.');
-    this.updateActions();
+    document.getElementById('step3').scrollIntoView({block:'start'});
   }
 
   resume() {
-    if (this.saving || !this.app.camera.isActive) return;
-    this.invalidate(); this.live = true;
-    document.getElementById('exam-preview').hidden = true;
+    if(this.saving)return;
+    this.invalidate();this.ui.setPhase('capture');
+    document.getElementById('exam-preview').hidden=true;
     document.getElementById('results-panel').replaceChildren();
-    this.tick(this.generation);
+    document.getElementById('scan-status').textContent='Fotografe novamente ou escolha outro arquivo.';
+    if(this.app.camera.isActive)this.cameraStarted();
+    this.updateActions();
   }
 
   async accept() {
     if (this.saving || this.saved) return;
-    const candidate = this.pending || this.candidate;
+    const candidate = this.pending;
     if (!candidate?.ready) return;
-    if (!this.pending && performance.now() - candidate.observedAt > 1500) {
-      this.ui._showMessage('Aguarde uma leitura atual da câmera.', 'info'); return;
-    }
     let student;
     try { student = this.identity(); } catch (error) { this.ui._showMessage(error.message, 'error'); return; }
     // Freeze before asynchronous storage: pixels, answers and identity form one immutable record.
@@ -270,7 +231,7 @@ export default class ExamReview {
     try {
       const evidence = createEvidence(candidate.image, record, candidate.original);
       await this.app.storage.saveAcceptedResult(record, evidence);
-      this.saved = record;
+      this.saved = record; this.ui.setPhase('saved');
       this.hud(candidate, 'Nota e evidência salvas. Toque em Próxima prova.');
       document.getElementById('scan-status').textContent = `Salvo${student ? ' para ' + student.name : ''}: nota ${format(record.grade)} · ${format(record.score.score)} pontos. Evidência disponível no histórico.`;
       this.ui._showMessage('Nota e evidência salvas', 'success');
@@ -283,7 +244,7 @@ export default class ExamReview {
   }
 
   lockControls(locked) {
-    const ids = ['student-name', 'student-select', 'open-settings', 'template-select', 'delete-template', 'edit-template', 'save-template', 'exam-file', 'template-file', 'exam-camera', 'template-camera', 'stop-camera', 'new-sheet', 'show-sheets'];
+    const ids = ['student-name', 'student-select', 'open-settings', 'template-select', 'delete-template', 'edit-template', 'save-template', 'exam-file', 'template-file', 'exam-camera', 'template-camera', 'stop-camera', 'new-sheet', 'show-sheets', 'back-models', 'approve-model'];
     if (locked) this.disabledControls = new Map(ids.map(id => [id, document.getElementById(id).disabled]));
     for (const id of ids) document.getElementById(id).disabled = locked || (this.disabledControls?.get(id) ?? false);
   }
@@ -301,7 +262,8 @@ export default class ExamReview {
     document.getElementById('exam-preview').hidden = true;
     document.getElementById('results-panel').replaceChildren();
     document.getElementById('scan-status').textContent = 'Próxima prova: confira o aluno e posicione a folha.';
-    if (this.app.camera.isActive) { this.live = true; this.tick(this.generation); }
+    this.ui.setPhase('capture');
+    if (this.app.camera.isActive) this.cameraStarted();
     this.updateActions();
   }
 
@@ -320,13 +282,15 @@ export default class ExamReview {
   }
 
   updateActions() {
-    const active = !!(this.live || this.candidate || this.pending || this.saved);
+    this.refreshIdentity();
+    const active = !!(this.pending || this.saved || this.failedCapture);
     document.getElementById('review-actions').hidden = !active;
+    document.getElementById('review-grade').hidden=!(this.pending || this.saved);
     const accept = document.getElementById('accept-exam');
-    accept.hidden = !!this.saved; accept.disabled = this.saving || !(this.pending || this.candidate)?.ready;
+    accept.hidden = !!this.saved || !this.pending; accept.disabled = this.saving || !this.pending?.ready;
     accept.textContent = this.saving ? 'Salvando nota e evidência…' : 'Aceitar e salvar evidência';
-    document.getElementById('freeze-exam').disabled = this.saving || !!this.pending || !!this.saved || !this.candidate?.ready;
-    document.getElementById('retake-exam').hidden = !this.pending || !this.app.camera.isActive || !!this.saved;
+    document.getElementById('retake-exam').hidden = (!this.pending && !this.failedCapture) || !!this.saved;
+    document.getElementById('retake-exam').textContent=this.app.camera.isActive?'Fotografar novamente':'Escolher outro arquivo';
     document.getElementById('retake-exam').disabled = this.saving;
     document.getElementById('next-exam').hidden = !this.saved;
     document.getElementById('download-current-evidence').hidden = !this.saved;

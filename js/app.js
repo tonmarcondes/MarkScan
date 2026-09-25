@@ -11,6 +11,7 @@
  * - Scanner: Para orquestração do fluxo de escaneamento
  */
 
+import DocumentImport from './modules/DocumentImport.js';
 import Camera from './modules/Camera.js';
 import Template from './modules/Template.js';
 import OMR from './modules/OMREngine.js';
@@ -34,6 +35,7 @@ class App {
     this.review = new ExamReview(this, this.ui);
     this.alignment = new Alignment();
     this.sheetBuilder = new SheetBuilder(this, this.ui);
+    this.documentImport = new DocumentImport(this);
     
     this.currentTemplate = null;
     this.examInProgress = false;

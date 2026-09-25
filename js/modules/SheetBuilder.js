@@ -50,11 +50,20 @@ export function buildTemplate(name, settings, answers) {
 }
 
 export function sheetSVG(template, key = false) {
-  if (template.imported && template.alignment) {
-    const {width,height}=template.alignment;
-    return `<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}"><image width="${width}" height="${height}" href="${template.url}" xlink:href="${template.url}"/></svg>`;
+  if (!template.generated) {
+    const {width,height}=template.imageSize || {width:840,height:1188};
+    const layout=template.layout,region=template.region || {shape:'circle',width:template.radius*2,height:template.radius*2*width/height};
+    const positions=layout.positions || Array.from({length:layout.rows*layout.cols},(_,i)=>[layout.left+(layout.right-layout.left)*(i%layout.cols)/(layout.cols-1),layout.rows===1?layout.top:layout.top+(layout.bottom-layout.top)*Math.floor(i/layout.cols)/(layout.rows-1)]);
+    const w=region.width*width*1.8,h=region.height*height*1.8;
+    let svg=`<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}"><rect width="100%" height="100%" fill="white"/>`;
+    positions.forEach(([nx,ny],i)=>{
+      const x=nx*width,y=ny*height,fill=key && template.answers[Math.floor(i/layout.cols)]===i%layout.cols?'black':'white';
+      svg+=region.shape==='circle'?`<ellipse cx="${x}" cy="${y}" rx="${w/2}" ry="${h/2}" fill="${fill}" stroke="black" stroke-width="1"/>`:`<rect x="${x-w/2}" y="${y-h/2}" width="${w}" height="${h}" fill="${fill}" stroke="black" stroke-width="1"/>`;
+      svg+=`<text x="${x}" y="${y-h/2-4}" text-anchor="middle" font-family="Arial" font-size="10">${Math.floor(i/layout.cols)+1}${String.fromCharCode(65+i%layout.cols)}</text>`;
+    });
+    for(const marker of template.alignment?.markers || [])svg+=template.alignment.type==='solid-v1'?solidSVG(marker):markerSVG(marker.id,marker.x,marker.y,template.alignment.markerSize);
+    return svg+'</svg>';
   }
-  if (!template.generated || !template.alignment) throw new Error('Este modelo não foi criado com referências. Use Criar folha com referências.');
   const { width, height, markers, markerSize } = template.alignment;
   const { markWidth, markHeight } = template.generated;
   const { positions, cols, rows } = template.layout;
@@ -102,8 +111,10 @@ export default class SheetBuilder {
     </form></dialog>
     <dialog id="print-sheet-dialog" aria-labelledby="print-sheet-title"><div class="settings-heading"><h2 id="print-sheet-title">Folhas com referências</h2><button id="close-print-sheet" class="btn secondary" aria-label="Fechar folhas">✕</button></div>
       <p id="print-description">Imprima a folha do aluno para as provas. O gabarito do professor contém as respostas: mantenha-o separado. Preserve as quatro marcas e use o mesmo modelo nas cópias.</p>
-      <div class="review-actions"><button id="print-student" class="btn primary">Imprimir folha do aluno</button><button id="download-student" class="btn secondary">Baixar folha do aluno</button><button id="print-key" class="btn secondary">Imprimir gabarito</button><button id="download-key" class="btn secondary">Baixar gabarito</button></div>
-      <div id="sheet-preview"></div>
+      <div class="review-actions"><button id="view-key" class="btn secondary">Ver gabarito preenchido</button><button id="view-blank" class="btn secondary">Ver gabarito em branco</button></div>
+      <div class="review-actions"><button id="share-key" class="btn primary">Compartilhar gabarito</button><button id="share-blank" class="btn primary">Compartilhar em branco</button></div>
+      <details><summary>Imprimir ou baixar</summary><div class="review-actions"><button id="print-student" class="btn primary">Imprimir folha do aluno</button><button id="download-student" class="btn secondary">Baixar folha do aluno</button><button id="print-key" class="btn secondary">Imprimir gabarito</button><button id="download-key" class="btn secondary">Baixar gabarito</button></div>
+      </details><p id="sheet-kind" role="status"></p><div id="sheet-preview"></div><p>Distribua a versão em branco aos alunos. Depois selecione este mesmo modelo para corrigir as cópias preenchidas.</p><button id="approve-sheet" class="btn primary">Aprovar modelo e corrigir provas</button>
     </dialog>`;
   }
   bind() {
@@ -120,6 +131,11 @@ export default class SheetBuilder {
     document.getElementById('close-sheet').addEventListener('click', () => document.getElementById('sheet-dialog').close());
     document.getElementById('close-print-sheet').addEventListener('click', () => document.getElementById('print-sheet-dialog').close());
     document.getElementById('sheet-form').addEventListener('submit', event => { event.preventDefault(); this.create(); });
+    document.getElementById('view-key').onclick=()=>this.preview(true);
+    document.getElementById('view-blank').onclick=()=>this.preview(false);
+    document.getElementById('share-key').onclick=()=>this.share(true);
+    document.getElementById('share-blank').onclick=()=>this.share(false);
+    document.getElementById('approve-sheet').onclick=()=>{document.getElementById('print-sheet-dialog').close();this.ui.setPhase('capture');document.getElementById('step3').scrollIntoView({block:'start'});};
     document.getElementById('show-sheets').addEventListener('click', () => this.show());
     for (const key of [false, true]) {
       document.getElementById(key ? 'download-key' : 'download-student').addEventListener('click', () => this.download(key));
@@ -163,29 +179,39 @@ export default class SheetBuilder {
     try {
       const id = document.getElementById('template-select').value;
       const template = await this.app.template.getTemplate(id);
-      if (!template?.generated && !template?.imported) throw new Error('Selecione um gabarito criado com referências, ou crie uma nova folha.');
+      if (!template?.layout) throw new Error('Selecione um gabarito criado com referências, ou crie uma nova folha.');
       this.template = template;
-      const imported=!!template.imported;
-      document.getElementById('print-description').textContent=imported ? 'Imagem importada com referências. O conteúdo original foi preservado: se houver respostas preenchidas, elas também aparecerão no download. Para distribuir uma folha em branco, importe uma imagem em branco e informe as respostas no editor.' : 'Imprima a folha do aluno em branco. Guarde o gabarito do professor separado e preserve as quatro referências.';
-      document.getElementById('print-student').textContent=imported ? 'Imprimir imagem com referências' : 'Imprimir folha do aluno';
-      document.getElementById('download-student').textContent=imported ? 'Baixar imagem com referências (PNG)' : 'Baixar folha do aluno';
-      document.getElementById('print-key').hidden=imported;
-      document.getElementById('download-key').hidden=imported;
-      document.getElementById('sheet-preview').innerHTML = sheetSVG(template, false);
+      document.getElementById('print-description').textContent=template.generated ? 'Confira o modelo antes de avançar. As duas versões usam exatamente as mesmas posições e referências.' : 'As versões abaixo são recriadas apenas com as áreas de resposta mapeadas, sem enunciados nem preenchimentos da imagem original. Confira o tamanho e a posição antes de usar na prova.';
+      this.files={};this.svgs={};
+      for(const key of [false,true]) {
+        const svg=sheetSVG(template,key);this.svgs[key]=svg;
+        const rendered=await svgImage(svg);const blob=await (await fetch(rendered.url)).blob();
+        this.files[key]=new File([blob],`MarkScan-${key?'gabarito':'em-branco'}-${template.id}.png`,{type:'image/png'});
+      }
+      this.preview(true);
       document.getElementById('print-sheet-dialog').showModal();
     } catch (error) { this.ui._showMessage(error.message, 'error'); }
   }
+  preview(key) {
+    this.previewKey=key;document.getElementById('sheet-preview').innerHTML=this.svgs[key];
+    document.getElementById('sheet-kind').textContent=key?'Gabarito preenchido · uso do professor':'Gabarito em branco · distribuir aos alunos';
+    document.getElementById('view-key').setAttribute('aria-pressed',String(key));
+    document.getElementById('view-blank').setAttribute('aria-pressed',String(!key));
+  }
+  async share(key) {
+    const file=this.files?.[key];if(!file)return;
+    try {
+      if(navigator.canShare?.({files:[file]})) await navigator.share({files:[file],title:key?'Gabarito preenchido':'Gabarito em branco'});
+      else { this.download(key);this.ui._showMessage('Imagem baixada. Este navegador não oferece compartilhamento de arquivos.','info'); }
+    }catch(error){if(error.name!=='AbortError')this.ui._showMessage(`Não foi possível compartilhar: ${error.message}`,'error');}
+  }
   download(key) {
-    if(this.template.imported) {
-      const link=document.createElement('a');link.href=this.template.url;link.download=`MarkScan-referencias-${this.template.id}.png`;link.click();return;
-    }
-    const url = URL.createObjectURL(new Blob([sheetSVG(this.template, key)], { type: 'image/svg+xml' }));
-    const link = document.createElement('a'); link.href = url; link.download = `MarkScan-${key ? 'gabarito' : 'aluno'}-${this.template.id}.svg`; link.click();
-    setTimeout(() => URL.revokeObjectURL(url), 60000);
+    const file=this.files?.[key];if(!file)return;
+    const url=URL.createObjectURL(file),link=document.createElement('a');link.href=url;link.download=file.name;link.click();setTimeout(()=>URL.revokeObjectURL(url),60000);
   }
   print(key) {
     const tab = window.open('', '_blank');
-    if (!tab) { this.ui._showMessage('Permita a janela de impressão ou baixe a folha em SVG.', 'info'); return; }
+    if (!tab) { this.ui._showMessage('Permita a janela de impressão ou baixe a folha em PNG.', 'info'); return; }
     tab.document.write(`<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><title>MarkScan · ${key ? 'Gabarito' : 'Folha do aluno'}</title><style>@page{size:A4 portrait;margin:10mm}body{margin:0}svg{width:190mm;height:auto;display:block;margin:auto}button{margin:12px;padding:12px}@media print{button{display:none}}</style></head><body><button onclick="window.print()">Imprimir / Salvar como PDF</button>${sheetSVG(this.template, key)}</body></html>`);
     tab.document.close(); tab.focus();
     tab.addEventListener('load', () => tab.print(), { once: true });

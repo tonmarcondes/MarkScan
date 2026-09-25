@@ -1,3 +1,4 @@
+const flow=require('./helpers.cjs');
 const { chromium } = require('playwright');
 const assert = require('node:assert/strict');
 
@@ -30,11 +31,13 @@ const assert = require('node:assert/strict');
     });
     await page.locator('#template-select').dispatchEvent('change');
     await page.waitForFunction(() => !!app.currentTemplate);
+    await flow.capture(page);
     await page.locator('#exam-camera').click();
+    await page.locator('#camera-stage').click();
     await page.waitForFunction(() => app.review.candidate?.ready && app.review.candidate.grade === 10).catch(async error => { console.error(await page.evaluate(() => ({ toast: document.getElementById('toast')?.textContent, state: document.getElementById('live-state')?.textContent, camera: app.camera.isActive, grade: app.review.candidate?.grade, answers: app.review.candidate?.answers, live: app.review.live, opening: app.ui.openingCamera }))); throw error; });
-    assert.match(await page.locator('#live-grade').textContent(), /Nota 10/);
-    if (process.env.MARKSCAN_SCREENSHOT) await page.locator('#camera-panel').screenshot({ path: process.env.MARKSCAN_SCREENSHOT });
-    assert.match(await page.locator('#live-points').textContent(), /4 \/ 4 pontos/);
+    assert.equal(await page.evaluate(()=>app.review.pending.grade),10);
+    if (process.env.MARKSCAN_SCREENSHOT) await page.locator('#exam-preview').screenshot({ path: process.env.MARKSCAN_SCREENSHOT });
+    assert.equal(await page.evaluate(()=>app.review.pending.score.score),4);
     assert.equal(await page.evaluate(async () => (await app.storage.getHistory()).length), 0);
     await page.locator('#accept-exam').click();
     assert.match(await page.locator('#toast').textContent(), /nome do aluno/);
@@ -59,16 +62,18 @@ const assert = require('node:assert/strict');
       return { width: image.width, black: ctx.getImageData(180, 390, 1, 1).data[0], white: ctx.getImageData(360, 390, 1, 1).data[0] };
     }, record.id);
     assert.equal(pixel.width, 900); assert.ok(pixel.black < 40); assert.ok(pixel.white > 220);
+    await page.locator('#open-history').click();
     await page.locator('#history-list button').first().click();
     await page.locator('#evidence-dialog').waitFor({ state: 'visible' });
     if (process.env.MARKSCAN_SCREENSHOT) await page.locator('#evidence-dialog').screenshot({ path: process.env.MARKSCAN_SCREENSHOT.replace('.png', '-evidence.png') });
     const downloaded = page.waitForEvent('download'); await page.locator('#download-evidence').click();
     const download = await downloaded; assert.match(download.suggestedFilename(), /Aluno-de-teste/);
     assert.equal(await download.failure(), null);
-    await page.locator('#close-evidence').click();
+    await page.locator('#close-evidence').click(); await page.locator('#close-history').click();
     await page.locator('#next-exam').click();
     assert.equal(await page.locator('#student-name').inputValue(), '');
     await page.evaluate(() => drawSheet([0, 2, -1, 3]));
+    await page.waitForTimeout(150); await page.locator('#camera-stage').click();
     await page.waitForFunction(() => app.review.candidate?.ready && app.review.candidate.grade === 5);
     // Settings import, mandatory roster selection, different students and next-student advance.
     await page.locator('#open-settings').click();
@@ -78,7 +83,7 @@ const assert = require('node:assert/strict');
     await page.locator('#accept-exam').click();
     assert.match(await page.locator('#toast').textContent(), /Selecione o aluno/);
     await page.locator('#student-select').selectOption('101');
-    await page.locator('#freeze-exam').click();
+    assert.equal(await page.locator('#freeze-exam').count(),0);
     assert.equal(await page.locator('#exam-preview').isVisible(), true);
     await page.evaluate(() => drawSheet([3, 3, 3, 3]));
     await page.locator('#accept-exam').click();
@@ -86,6 +91,7 @@ const assert = require('node:assert/strict');
     assert.equal(await page.evaluate(() => app.review.saved.grade), 5);
     await page.locator('#next-exam').click();
     assert.equal(await page.locator('#student-select').inputValue(), '102');
+    await page.waitForTimeout(150); await page.locator('#camera-stage').click();
     // A storage failure must not clear the candidate or claim it was saved. Retrying uses
     // the retained image, even after the live picture changes.
     await page.waitForFunction(() => app.review.candidate?.ready && app.review.candidate.grade === 2.5);
@@ -114,21 +120,23 @@ const assert = require('node:assert/strict');
       catch {} finally { app.storage.db.transaction = nativeTransaction; }
       return !(await app.storage.getHistory()).some(record => record.id === 'aborted') && !(await app.storage.getEvidence('aborted'));
     }), true);
-    await page.locator('#stop-camera').click();
+    await page.locator('#back-models').click();
     await page.reload();
     await page.waitForFunction(() => document.querySelectorAll('#history-list tbody tr').length === 3);
     assert.equal(await page.evaluate(() => app.config.get('students.mode')), 'list');
+    await page.locator('#open-history').click();
     await page.locator('#history-list button').first().click();
     await page.waitForFunction(() => document.getElementById('evidence-image').complete && document.getElementById('evidence-image').naturalWidth > 0);
-    await page.locator('#close-evidence').click();
+    await page.locator('#close-evidence').click(); await page.locator('#close-history').click();
     // Offline receipts and roster remain available after a reload.
     await page.evaluate(() => navigator.serviceWorker.ready);
     await context.setOffline(true); await page.reload();
     await page.waitForFunction(() => document.querySelectorAll('#history-list tbody tr').length === 3);
+    await page.locator('#open-history').click();
     await page.locator('#history-list button').first().click();
     await page.waitForFunction(() => document.getElementById('evidence-image').naturalWidth > 0);
-    await page.locator('#close-evidence').click(); await context.setOffline(false);
+    await page.locator('#close-evidence').click(); await page.locator('#close-history').click(); await context.setOffline(false);
     assert.deepEqual(errors, []);
-    console.log('PASS: live grade and points, stable preview, required identity, exact-frame evidence, double accept, camera stays open, next student, roster import, freeze, save failure/retry, atomic rollback, history/evidence reload and offline, image download.');
+    console.log('PASS: tap capture, grade and points, clean frozen preview, required identity, exact-frame evidence, double accept, camera stays open, next student, roster import, freeze, save failure/retry, atomic rollback, history/evidence reload and offline, image download.');
   } finally { await browser.close(); }
 })().catch(error => { console.error(error); process.exit(1); });
