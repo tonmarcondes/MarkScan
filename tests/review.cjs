@@ -37,6 +37,7 @@ const assert = require('node:assert/strict');
     await page.locator('#camera-stage').click();
     await page.waitForFunction(() => app.review.candidate?.ready && app.review.candidate.grade === 10).catch(async error => { console.error(await page.evaluate(() => ({ toast: document.getElementById('toast')?.textContent, state: document.getElementById('live-state')?.textContent, camera: app.camera.isActive, grade: app.review.candidate?.grade, answers: app.review.candidate?.answers, live: app.review.live, opening: app.ui.openingCamera }))); throw error; });
     assert.equal(await page.evaluate(()=>app.review.pending.grade),10);
+    assert.equal(await page.locator('#alignment-summary').isVisible(),false);
     if (process.env.MARKSCAN_SCREENSHOT) await page.locator('#exam-preview').screenshot({ path: process.env.MARKSCAN_SCREENSHOT });
     assert.equal(await page.evaluate(()=>app.review.pending.score.score),4);
     assert.equal(await page.evaluate(async () => (await app.storage.getHistory()).length), 0);

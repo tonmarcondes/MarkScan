@@ -12,7 +12,7 @@ const flow=require('./helpers.cjs');
   await fixture.setContent(`<style>@page{size:500px 600px;margin:0}body{margin:0}.page{width:500px;height:600px;break-after:page}svg{display:block}</style><div class="page"><h1>Capa da prova</h1></div><div class="page"><svg width="500" height="600" xmlns="http://www.w3.org/2000/svg"><rect width="500" height="600" fill="white"/>${circles}</svg></div>`);
   const pdf=await fixture.pdf({preferCSSPageSize:true,printBackground:true});await fixture.close();
   await page.goto(process.env.MARKSCAN_URL||'http://localhost:8080');await page.waitForFunction(()=>window.app?.documentImport);
-  assert.equal(await page.locator('.app-version').textContent(),'v1.5.0');
+  assert.equal(await page.locator('.app-version').textContent(),'v1.6.0');
   assert.equal(await page.locator('#step3').isVisible(),false);
   await page.locator('#open-settings').click();assert.equal(await page.locator('#reference-thickness option[value="3"]').count(),0);
   await page.locator('#template-rows').fill('4');await page.locator('#mark-width').fill('30');await page.locator('#student-mode').selectOption('none');await page.locator('#save-settings').click();

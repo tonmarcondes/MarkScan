@@ -8,7 +8,7 @@ const assert = require('node:assert/strict');
   const errors=[];page.on('pageerror',e=>errors.push(e.message));
   await page.goto(process.env.MARKSCAN_URL || 'http://localhost:8080/');
   await page.waitForFunction(()=>window.app?.ui && document.getElementById('open-help'));
-  assert.equal(await page.locator('.app-version').textContent(),'v1.5.0');
+  assert.equal(await page.locator('.app-version').textContent(),'v1.6.0');
   assert.equal(await page.locator('#btn-apply-template').count(),0);
   await page.locator('#open-help').click();assert.match(await page.locator('#help-dialog').textContent(),/primeira alternativa/);await page.locator('#close-help').click();
   await page.locator('#open-settings').click();await page.locator('#template-rows').fill('4');await page.locator('#score-correct').fill('2');

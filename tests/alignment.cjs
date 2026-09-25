@@ -168,6 +168,8 @@ const assert = require('node:assert/strict');
     await page.evaluate(()=>{videoPhoto=new ImageData(videoPhoto.width,videoPhoto.height);videoPhoto.data.fill(255);});
     await page.waitForTimeout(150);await page.locator('#camera-stage').click();
     await page.waitForFunction(()=>!!app.review.failedCapture);
+    assert.equal(await page.locator('#alignment-summary').isVisible(),false);
+    assert.equal(await page.locator('#original-figure').isVisible(),false);
     assert.equal(await page.locator('#accept-exam').isVisible(),false);
     assert.match(await page.locator('#scan-status').textContent(),/0\/4/);
     await flow.models(page);

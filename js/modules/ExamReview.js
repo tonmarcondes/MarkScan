@@ -1,10 +1,10 @@
+import { iconButton } from './Icons.js';
+import { alignmentReviewMarkup, showAlignmentReview, clearAlignmentReview } from './AlignmentReview.js';
 import { project } from './Alignment.js';
 import { parseRoster } from './Roster.js';
 import { createEvidence } from './Evidence.js';
 
 const copy = value => JSON.parse(JSON.stringify(value));
-const icons={grid:'<rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18M3 15h18M9 3v18M15 3v18"/>',fit:'<path d="M8 3H3v5M16 3h5v5M3 16v5h5M21 16v5h-5M12 6v12M6 12h12"/><circle cx="12" cy="12" r="4"/>',close:'<path d="m6 6 12 12M6 18 18 6"/>',check:'<path d="m4 12 5 5L20 6"/>',next:'<path d="M4 12h16m-6-6 6 6-6 6"/>',retry:'<path d="M3 10a9 9 0 1 1 2 8M3 3v7h7"/>',download:'<path d="M12 3v12m-5-5 5 5 5-5M4 17v4h16v-4"/>',finish:'<path d="M9 4H4v16h5M10 12h11m-5-5 5 5-5 5"/>'};
-function iconButton(id,icon,label){const b=document.getElementById(id);b.classList.add('icon-button');b.setAttribute('aria-label',label);b.title=label;b.innerHTML=`<svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${icons[icon]}</svg>`;}
 const format = value => Number(value).toLocaleString('pt-BR', { maximumFractionDigits: 2 });
 
 export default class ExamReview {
@@ -36,7 +36,7 @@ export default class ExamReview {
       <label id="student-list-field" hidden>Aluno da lista<select id="student-select"><option value="">Selecione um aluno</option></select></label>
       <p id="student-help"></p>
     </div>
-    <p id="review-grade" class="review-grade" role="status" hidden></p><div class="canvas-viewport"><canvas id="exam-preview" hidden></canvas></div>
+    <p id="review-grade" class="review-grade" role="status" hidden></p>${alignmentReviewMarkup()}
     <div id="scan-status" class="scan-status" role="status"></div>
     <div id="review-actions" class="review-actions" hidden>
       <button id="accept-exam" class="btn primary" disabled>Aceitar e salvar evidência</button>
@@ -112,7 +112,7 @@ export default class ExamReview {
 
   invalidate() {
     if (this.saving) return;
-    this.generation++; clearTimeout(this.timer);
+    this.generation++; clearTimeout(this.timer); clearAlignmentReview();
     this.candidate = null; this.pending = null; this.saved = null; this.failedCapture=null;
     this.signature = ''; this.stableCount = 0;
     this.updateActions();
@@ -212,7 +212,7 @@ export default class ExamReview {
       const candidate=await this.analyze(image,'camera');
       if(generation!==this.generation)return;
       candidate.ready=true;this.pending=candidate;this.candidate=candidate;this.showFrozen(candidate);
-      document.getElementById('scan-status').textContent='Confira a fotografia, a nota e o aluno. Aprove para salvar a evidência.';
+      document.getElementById('scan-status').textContent='Confira o enquadramento, a nota e o aluno. ✓ aceita e salva a evidência; a seta circular permite repetir a foto.';
     } catch(error) {
       if(generation!==this.generation)return;
       this.failedCapture=image || true;this.ui.setPhase('review');
@@ -244,6 +244,7 @@ export default class ExamReview {
     canvas.width = candidate.image.width; canvas.height = candidate.image.height; canvas.hidden = false;
     this.ui._sizeCanvas(canvas); canvas.getContext('2d').putImageData(candidate.image, 0, 0);
     this.ui.setPhase('review');
+    showAlignmentReview(candidate);
     document.getElementById('camera-panel').hidden=true;
     document.getElementById('review-grade').textContent=`Nota ${format(candidate.grade)} / ${format(candidate.gradeScale)} · ${format(candidate.score.score)} / ${format(candidate.score.total)} pontos`;
     document.getElementById('review-grade').hidden=false;

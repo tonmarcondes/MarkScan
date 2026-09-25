@@ -1,3 +1,4 @@
+import { helpGuideMarkup } from './HelpGuide.js';
 import { solidDefinition } from './SolidReferences.js';
 import { VERSION } from '../version.js';
 import { parseRoster } from './Roster.js';
@@ -101,15 +102,7 @@ export class UI {
       </div>
       <dialog id="history-dialog"><div class="settings-heading"><h2>Correções aceitas</h2><button id="close-history" class="btn secondary" aria-label="Fechar histórico">✕</button></div><div id="history-content"></div></dialog>${this.app.documentImport.markup()}${this._settingsMarkup()}
       <dialog id="help-dialog" aria-labelledby="help-title"><div class="settings-heading"><h2 id="help-title">Manual prático · v${VERSION}</h2><button id="close-help" class="btn secondary" aria-label="Fechar ajuda">✕</button></div>
-      <h3>1. Prepare o modelo</h3><p>Abra ⚙ para definir questões, alternativas, formato, pontuação e alunos. Os ajustes válidos são salvos automaticamente neste navegador.</p>
-      <p><strong>Folha nova:</strong> use Criar folha com referências, informe o nome e as respostas. Baixe ou imprima a folha do aluno em branco e guarde o gabarito preenchido separado.</p>
-      <p><strong>Sua própria imagem:</strong> carregue uma foto ou imagem. Marque o centro da primeira alternativa da primeira questão e da última alternativa da última questão. Confira a grade; clique nos números para corrigir cada posição.</p>
-      <p>Use Posicionar referências e clique nos quatro cantos, em ordem: superior esquerdo, superior direito, inferior direito e inferior esquerdo. Escolha espaços brancos, longe das respostas. Aprove o mapeamento, posicione os blocos, salve e confira as versões preenchida e em branco antes de seguir para a correção. As cópias dos alunos precisam ter esses mesmos blocos nas mesmas posições.</p>
-      <h3>2. Selecione e corrija</h3><p>Selecionar um modelo já o ativa. Use Editar modelo para ajustar ou Excluir modelo para removê-lo; o histórico permanece.</p>
-      <p>Abra a câmera, mostre todas as referências e toque na imagem para fotografar. A fotografia será alinhada e exibida sem números de calibração. Confira a nota e o aluno e toque em Aceitar e salvar evidência; depois, Próxima prova. Você também pode carregar uma foto da prova.</p>
-      <h3>3. Confira e guarde</h3><p>Toque na câmera para fotografar. Confira a imagem corrigida, sem números sobrepostos, antes de aceitar. No histórico, Ver imagem e Baixar imagem mostram a evidência. A nota só é registrada ao aceitar.</p>
-      <h3>Controles da câmera</h3><p>A borda verde delimita a fotografia. O ícone de grade mostra ou oculta os contornos, sem números. O alvo acompanha as quatro referências e ajusta a grade; se perder as referências, os contornos desaparecem. Modelos sem referências usam uma grade fixa. Toque na imagem para fotografar. Na conferência, ✓ aceita e salva, a seta circular repete a foto, → inicia a próxima prova e a porta com seta finaliza. O download continua no histórico, em Ver imagem.</p><h3>Se a leitura falhar</h3><p>Aproxime a câmera, melhore a luz, alise o papel e mantenha os quatro blocos visíveis. Marcas pequenas precisam estar nítidas. Os blocos sólidos indicam orientação, mas não identificam o modelo: confira o modelo selecionado. Modelos antigos codificados continuam funcionando.</p>
-      <p>Dados e configurações ficam neste navegador. Limpar os dados do site os remove. PDFs podem ser importados: escolha a página, recorte se necessário e aprove a imagem. Mudanças de geometria exigem novas cópias impressas.</p></dialog>
+      ${helpGuideMarkup()}</dialog>
       <dialog id="delete-dialog" aria-labelledby="delete-title"><h2 id="delete-title">Excluir modelo?</h2><p id="delete-name"></p><p>As notas e evidências já salvas serão mantidas.</p><button id="confirm-delete" class="btn danger">Excluir modelo</button><button id="cancel-delete" class="btn secondary">Cancelar</button></dialog>
       ${this.app.sheetBuilder.markup()}
     `;
