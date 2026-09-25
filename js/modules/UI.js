@@ -108,7 +108,7 @@ export class UI {
       <h3>2. Selecione e corrija</h3><p>Selecionar um modelo já o ativa. Use Editar modelo para ajustar ou Excluir modelo para removê-lo; o histórico permanece.</p>
       <p>Abra a câmera, mostre todas as referências e toque na imagem para fotografar. A fotografia será alinhada e exibida sem números de calibração. Confira a nota e o aluno e toque em Aceitar e salvar evidência; depois, Próxima prova. Você também pode carregar uma foto da prova.</p>
       <h3>3. Confira e guarde</h3><p>Toque na câmera para fotografar. Confira a imagem corrigida, sem números sobrepostos, antes de aceitar. No histórico, Ver imagem e Baixar imagem mostram a evidência. A nota só é registrada ao aceitar.</p>
-      <h3>Se a leitura falhar</h3><p>Aproxime a câmera, melhore a luz, alise o papel e mantenha os quatro blocos visíveis. Marcas pequenas precisam estar nítidas. Os blocos sólidos indicam orientação, mas não identificam o modelo: confira o modelo selecionado. Modelos antigos codificados continuam funcionando.</p>
+      <h3>Controles da câmera</h3><p>A borda verde delimita a fotografia. O ícone de grade mostra ou oculta os contornos, sem números. O alvo acompanha as quatro referências e ajusta a grade; se perder as referências, os contornos desaparecem. Modelos sem referências usam uma grade fixa. Toque na imagem para fotografar. Na conferência, ✓ aceita e salva, a seta circular repete a foto, → inicia a próxima prova e a porta com seta finaliza. O download continua no histórico, em Ver imagem.</p><h3>Se a leitura falhar</h3><p>Aproxime a câmera, melhore a luz, alise o papel e mantenha os quatro blocos visíveis. Marcas pequenas precisam estar nítidas. Os blocos sólidos indicam orientação, mas não identificam o modelo: confira o modelo selecionado. Modelos antigos codificados continuam funcionando.</p>
       <p>Dados e configurações ficam neste navegador. Limpar os dados do site os remove. PDFs podem ser importados: escolha a página, recorte se necessário e aprove a imagem. Mudanças de geometria exigem novas cópias impressas.</p></dialog>
       <dialog id="delete-dialog" aria-labelledby="delete-title"><h2 id="delete-title">Excluir modelo?</h2><p id="delete-name"></p><p>As notas e evidências já salvas serão mantidas.</p><button id="confirm-delete" class="btn danger">Excluir modelo</button><button id="cancel-delete" class="btn secondary">Cancelar</button></dialog>
       ${this.app.sheetBuilder.markup()}
@@ -251,37 +251,37 @@ export class UI {
         <div class="settings-heading"><h2 id="settings-title">Configurações</h2><button type="button" id="close-settings" class="btn secondary" aria-label="Fechar configurações">✕</button></div>
         <p>Os ajustes válidos são salvos automaticamente ao alterar os campos. Os ajustes de leitura valem para o gabarito em edição. Gabaritos salvos mantêm sua calibração até você editá-los e salvar.</p>
         <fieldset><legend>Grade e área de leitura</legend><div class="settings-grid">
-          <label>Questões<input id="template-rows" type="number" min="1" max="100" step="1" required></label>
-          <label>Alternativas<input id="template-cols" type="number" min="2" max="8" step="1" required></label>
+          <label>Questões<input id="template-rows" type="number" inputmode="numeric" min="1" max="100" step="1" required></label>
+          <label>Alternativas<input id="template-cols" type="number" inputmode="numeric" min="2" max="8" step="1" required></label>
           <label>Formato<select id="mark-shape"><option value="circle">Bolha (círculo)</option><option value="square">Quadrado</option><option value="rectangle">Retângulo</option></select></label>
-          <label>Diâmetro / largura (pixels)<input id="mark-width" type="number" min="2" max="200" step="1" required></label>
-          <label>Altura do retângulo (pixels)<input id="mark-height" type="number" min="2" max="200" step="1" required></label>
-          <label>Limiar de leitura (0–255)<input id="mark-threshold" type="number" min="0" max="255" step="1" required></label>
+          <label>Diâmetro / largura (pixels)<input id="mark-width" type="number" inputmode="numeric" min="2" max="200" step="1" required></label>
+          <label>Altura do retângulo (pixels)<input id="mark-height" type="number" inputmode="numeric" min="2" max="200" step="1" required></label>
+          <label>Limiar de leitura (0–255)<input id="mark-threshold" type="number" inputmode="numeric" min="0" max="255" step="1" required></label>
         </div><p>A área deve ficar dentro da marca impressa. Alterar a quantidade de questões ou alternativas refaz a grade e remove ajustes individuais.</p></fieldset>
         <fieldset><legend>Referências impressas</legend><div class="settings-grid"><label>Espessura dos blocos (pixels na imagem)<select id="reference-thickness"><option value="5">5 px (mínimo)</option><option value="8">8 px (recomendado)</option><option value="10">10 px</option></select></label></div><p>Quatro blocos sólidos com comprimentos diferentes indicam a orientação. Use espaços brancos ao redor e teste a impressão; use pelo menos 5 px; 8 px facilita a captura.</p></fieldset>
         <fieldset><legend>Números e contornos sobre a imagem</legend><div class="settings-grid">
           <label>Cor do contorno<input id="annotation-color" type="color"></label>
           <label>Cor dos números<input id="annotation-textColor" type="color"></label>
           <label>Fundo dos números<input id="annotation-background" type="color"></label>
-          <label>Tamanho dos números (px na tela)<input id="annotation-fontSize" type="number" min="10" max="48" step="1" required></label>
+          <label>Tamanho dos números (px na tela)<input id="annotation-fontSize" type="number" inputmode="numeric" min="10" max="48" step="1" required></label>
           <label>Fonte<select id="annotation-font"><option value="Arial">Arial</option><option value="Verdana">Verdana</option><option value="Georgia">Georgia</option><option value="monospace">Monoespaçada</option></select></label>
           <label>Tipo de texto<select id="annotation-fontStyle"><option value="bold">Negrito</option><option value="normal">Normal</option><option value="italic">Itálico</option><option value="italic bold">Negrito e itálico</option></select></label>
           <label>Tipo de contorno<select id="annotation-lineStyle"><option value="solid">Contínuo</option><option value="dashed">Tracejado</option></select></label>
-          <label>Espessura do contorno (px)<input id="annotation-lineWidth" type="number" min="1" max="6" step="1" required></label>
+          <label>Espessura do contorno (px)<input id="annotation-lineWidth" type="number" inputmode="numeric" min="1" max="6" step="1" required></label>
           <label>Ampliação da imagem<select id="annotation-zoom"><option value="100">Ajustar à largura</option><option value="150">150%</option><option value="200">200%</option><option value="300">300%</option></select></label>
         </div><p>Os números têm fundo sólido para contrastar com a impressão. A ampliação permite posicionar áreas pequenas com mais precisão.</p></fieldset>
         <fieldset><legend>Alunos e confirmação da nota</legend><div class="settings-grid">
           <label>Identificação do aluno<select id="student-mode"><option value="none">Sem identificação</option><option value="name">Digitar nome</option><option value="list">Selecionar de uma lista</option></select></label>
-          <label>Nota máxima<input id="grade-scale" type="number" min="1" max="100" step="1" required></label>
+          <label>Nota máxima<input id="grade-scale" type="number" inputmode="numeric" min="1" max="100" step="1" required></label>
         </div>
         <label class="roster-label">Lista de alunos (um por linha)<textarea id="roster-text" rows="6" placeholder="Ana Silva&#10;2026002;Bruno Souza"></textarea></label>
         <label>Carregar lista de texto (.txt)<input id="roster-file" type="file" accept=".txt,text/plain"></label>
         <p>Use um nome por linha, ou matrícula;nome. Para alunos com o mesmo nome, informe matrículas distintas. A nota e a imagem só são salvas ao clicar em Aceitar.</p>
         </fieldset>
         <fieldset><legend>Pontuação</legend><div class="settings-grid">
-          <label>Pontos por acerto<input id="score-correct" type="number" min="0" step="0.5" required></label>
-          <label>Desconto por erro<input id="score-incorrect" type="number" min="0" step="0.5" required></label>
-          <label>Pontos em branco<input id="score-blank" type="number" min="0" step="0.5" required></label>
+          <label>Pontos por acerto<input id="score-correct" type="number" inputmode="decimal" min="0" step="0.5" required></label>
+          <label>Desconto por erro<input id="score-incorrect" type="number" inputmode="decimal" min="0" step="0.5" required></label>
+          <label>Pontos em branco<input id="score-blank" type="number" inputmode="decimal" min="0" step="0.5" required></label>
         </div></fieldset>
         <p id="settings-error" role="alert"></p>
         <div class="settings-footer"><button type="submit" id="save-settings" class="btn primary">Salvar configurações</button></div>
@@ -381,7 +381,7 @@ export class UI {
     try {
       await this.app.camera.initialize(document.getElementById('camera-preview'));
       if (kind === 'exam') this.app.review.cameraStarted();
-      else { document.getElementById('live-state').textContent='Toque na imagem para fotografar o modelo.'; document.getElementById('camera-stage').hidden=false; }
+      else { const stage=document.getElementById('camera-stage'); stage.style.aspectRatio=String(this.app.camera.dimensions.width/this.app.camera.dimensions.height); stage.style.setProperty('--camera-aspect',this.app.camera.dimensions.width/this.app.camera.dimensions.height); document.getElementById('toggle-camera-grid').hidden=true; document.getElementById('fit-camera-grid').hidden=true; document.getElementById('camera-guide').getContext('2d').clearRect(0,0,1200,5000); document.getElementById('live-state').textContent='Toque na imagem para fotografar o modelo.'; document.getElementById('camera-stage').hidden=false; }
       panel.scrollIntoView({ block: 'start' });
     } catch (error) { this._closeCamera(); this._showMessage(error.message, 'error'); }
     finally { button.disabled = false; this.openingCamera = false; }

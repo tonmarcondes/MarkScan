@@ -1,7 +1,10 @@
+import { project } from './Alignment.js';
 import { parseRoster } from './Roster.js';
 import { createEvidence } from './Evidence.js';
 
 const copy = value => JSON.parse(JSON.stringify(value));
+const icons={grid:'<rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18M3 15h18M9 3v18M15 3v18"/>',fit:'<path d="M8 3H3v5M16 3h5v5M3 16v5h5M21 16v5h-5M12 6v12M6 12h12"/><circle cx="12" cy="12" r="4"/>',close:'<path d="m6 6 12 12M6 18 18 6"/>',check:'<path d="m4 12 5 5L20 6"/>',next:'<path d="M4 12h16m-6-6 6 6-6 6"/>',retry:'<path d="M3 10a9 9 0 1 1 2 8M3 3v7h7"/>',download:'<path d="M12 3v12m-5-5 5 5 5-5M4 17v4h16v-4"/>',finish:'<path d="M9 4H4v16h5M10 12h11m-5-5 5 5-5 5"/>'};
+function iconButton(id,icon,label){const b=document.getElementById(id);b.classList.add('icon-button');b.setAttribute('aria-label',label);b.title=label;b.innerHTML=`<svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${icons[icon]}</svg>`;}
 const format = value => Number(value).toLocaleString('pt-BR', { maximumFractionDigits: 2 });
 
 export default class ExamReview {
@@ -22,8 +25,10 @@ export default class ExamReview {
         <canvas id="camera-guide" aria-hidden="true"></canvas>
       </div>
       <p id="live-state">Alinhe as marcas aos contornos.</p>
-      <div class="review-actions">
-        <button id="stop-camera" class="btn secondary">Fechar câmera</button>
+      <div class="review-actions camera-tools">
+        <button id="toggle-camera-grid" class="btn secondary icon-button" aria-label="Mostrar grade" title="Mostrar ou ocultar grade" aria-pressed="false">▦</button>
+        <button id="fit-camera-grid" class="btn secondary icon-button" aria-label="Alinhar grade automaticamente" title="Acompanhar referências automaticamente" aria-pressed="false">⌖</button>
+        <button id="stop-camera" class="btn secondary icon-button" aria-label="Fechar câmera" title="Fechar câmera">✕</button>
       </div>
     </div>
     <div id="student-panel" class="student-panel" hidden>
@@ -37,7 +42,7 @@ export default class ExamReview {
       <button id="accept-exam" class="btn primary" disabled>Aceitar e salvar evidência</button>
       <button id="retake-exam" class="btn secondary" hidden>Fotografar novamente</button>
       <button id="next-exam" class="btn primary" hidden>Próxima prova</button>
-      <button id="download-current-evidence" class="btn secondary" hidden>Baixar evidência</button>
+      <button id="download-current-evidence" class="btn secondary" hidden>Finalizar</button>
     </div>
     <div id="results-panel" class="results-panel"></div>
     <details class="history-section"><summary>Ver correções aceitas</summary>
@@ -53,10 +58,11 @@ export default class ExamReview {
   }
 
   bind() {
+    for(const [id,icon,label] of [['toggle-camera-grid','grid','Mostrar ou ocultar grade'],['fit-camera-grid','fit','Ativar ou desativar alinhamento automático'],['stop-camera','close','Fechar câmera'],['download-evidence','download','Baixar imagem'],['download-current-evidence','finish','Finalizar'],['next-exam','next','Próxima prova']])iconButton(id,icon,label);
     document.getElementById('accept-exam').addEventListener('click', () => this.accept());
     document.getElementById('retake-exam').addEventListener('click', () => this.resume());
     document.getElementById('next-exam').addEventListener('click', () => this.next());
-    document.getElementById('download-current-evidence').addEventListener('click', () => this.download(this.saved));
+    document.getElementById('download-current-evidence').addEventListener('click', () => { this.ui._closeCamera(); this.next(); this.ui.setPhase('model'); this.ui._showMessage('Correção finalizada. A evidência está no histórico.', 'success'); });
     document.getElementById('refresh-history').addEventListener('click', () => this.refreshHistory());
     document.getElementById('more-history').addEventListener('click', () => { this.historyLimit += 30; this.refreshHistory(); });
     document.getElementById('close-evidence').addEventListener('click', () => document.getElementById('evidence-dialog').close());
@@ -66,6 +72,13 @@ export default class ExamReview {
         this.candidate = null; this.stableCount = 0; this.signature = ''; this.updateActions(); this.hud(null, 'Leitura pausada enquanto a aba está oculta.');
       }
     });
+    document.getElementById('toggle-camera-grid').addEventListener('click', () => {
+      this.gridVisible = !this.gridVisible; this.app.config.update({review:{showGrid:this.gridVisible}}); this.autoGrid=!!(this.gridVisible && this.app.currentTemplate?.alignment); this.trackGuide();
+    });
+    document.getElementById('fit-camera-grid').addEventListener('click', () => {
+      this.autoGrid = !this.autoGrid; this.gridMatrix=null; this.gridVisible=true; this.app.config.update({review:{showGrid:true}}); this.trackGuide();
+    });
+    this.gridVisible=!!this.app.config.get('review.showGrid');
     this.refreshIdentity();
     this.refreshHistory();
   }
@@ -106,7 +119,7 @@ export default class ExamReview {
   }
 
   cameraStarted() {
-    this.invalidate(); this.live = true;
+    this.invalidate(); this.live = true; this.gridMatrix=null; this.autoGrid=false;
     const dimensions = this.app.currentTemplate.alignment ? this.app.camera.dimensions : (this.app.currentTemplate.imageSize || this.app.camera.dimensions);
     this.aspectRatio = dimensions.width / dimensions.height;
     document.getElementById('camera-stage').style.aspectRatio = String(this.aspectRatio);
@@ -119,11 +132,13 @@ export default class ExamReview {
     document.getElementById('exam-preview').hidden = true;
     document.getElementById('results-panel').replaceChildren();
     document.getElementById('scan-status').textContent = this.app.currentTemplate.alignment ? 'Mostre os quatro blocos, toque para fotografar e confira a correção.' : 'Modelo sem referências: mantenha a mesma posição da imagem cadastrada e toque para fotografar.';
-    this.drawGuide(); this.updateActions();
+    document.getElementById('toggle-camera-grid').hidden=false; document.getElementById('fit-camera-grid').hidden=false;
+    document.getElementById('fit-camera-grid').disabled=!this.app.currentTemplate.alignment;
+    this.autoGrid=!!(this.gridVisible && this.app.currentTemplate.alignment); this.trackGuide(); this.updateActions();
   }
 
   stop() {
-    this.live = false; this.generation++; clearTimeout(this.timer);
+    this.live = false; this.autoGrid=false; clearTimeout(this.guideTimer); this.generation++; clearTimeout(this.timer);
     if (!this.pending && !this.saved) this.candidate = null;
     document.getElementById('camera-panel').classList.remove('exam-live');
     document.getElementById('camera-stage').style.aspectRatio = '';
@@ -148,15 +163,48 @@ export default class ExamReview {
     document.getElementById('live-state').textContent = candidate?.alignment ? `Folha alinhada (${candidate.alignment.rotation}°) · ${message}` : message;
   }
 
+  trackGuide() {
+    clearTimeout(this.guideTimer);
+    if (!this.live || this.pending || this.saved || !this.app.camera.isActive) return;
+    this.gridMatrix=null;
+    if (this.autoGrid && !document.hidden) {
+      try {
+        const image=this.app.camera.captureFrame({aspectRatio:this.aspectRatio,maxDimension:1600});
+        this.gridMatrix=this.app.alignment.align(image,this.app.currentTemplate.alignment,{preview:true}).metadata.matrix;
+        document.getElementById('live-state').textContent='Grade alinhada às referências. Toque na imagem para fotografar.';
+      } catch(error) { document.getElementById('live-state').textContent=error.message; }
+    }
+    this.drawGuide();
+    if(this.autoGrid)this.guideTimer=setTimeout(()=>this.trackGuide(),500);
+  }
+
   drawGuide() {
-    const canvas=document.getElementById('camera-guide');
-    canvas.getContext('2d').clearRect(0,0,canvas.width,canvas.height);
+    const canvas=document.getElementById('camera-guide'), t=this.app.currentTemplate;
+    canvas.width=1200; canvas.height=Math.round(1200/(this.aspectRatio||1));
+    const ctx=canvas.getContext('2d');
+    document.getElementById('toggle-camera-grid').setAttribute('aria-pressed',String(!!this.gridVisible));
+    document.getElementById('fit-camera-grid').setAttribute('aria-pressed',String(!!this.autoGrid));
+    if(!this.gridVisible || !t || (t.alignment && !this.gridMatrix))return;
+    const positions=this.app.omr.detectBubbles({width:100000,height:100000},t.layout);
+    const region=t.region||{shape:'circle',width:t.radius*2,height:t.radius*2};
+    const point=(x,y)=>{const p=this.gridMatrix?project(this.gridMatrix,x,y):[x,y];return [p[0]*canvas.width,p[1]*canvas.height];};
+    ctx.strokeStyle='#00efcd';ctx.lineWidth=2;ctx.shadowColor='#000';ctx.shadowBlur=2;
+    for(const [px,py] of positions){
+      const x=px/100000,y=py/100000;ctx.beginPath();
+      const circle=region.shape==='circle', count=circle?32:4;
+      for(let i=0;i<count;i++){
+        const dx=circle?Math.cos(i*2*Math.PI/count):[-1,1,1,-1][i];
+        const dy=circle?Math.sin(i*2*Math.PI/count):[-1,-1,1,1][i];
+        const p=point(x+dx*region.width/2,y+dy*region.height/2);
+        if(i)ctx.lineTo(...p);else ctx.moveTo(...p);
+      }ctx.closePath();ctx.stroke();
+    }
   }
 
   async capture() {
     if(this.capturing || this.saving || this.pending || this.saved) return;
     if(!this.app.camera.isActive){document.getElementById('live-state').textContent='Câmera desconectada. Feche e abra a câmera novamente.';return;}
-    this.capturing=true; this.generation++; const generation=this.generation;
+    clearTimeout(this.guideTimer); this.capturing=true; this.generation++; const generation=this.generation;
     let image;
     try {
       image=this.app.camera.captureFrame({aspectRatio:this.aspectRatio,maxDimension:2400});
@@ -288,9 +336,9 @@ export default class ExamReview {
     document.getElementById('review-grade').hidden=!(this.pending || this.saved);
     const accept = document.getElementById('accept-exam');
     accept.hidden = !!this.saved || !this.pending; accept.disabled = this.saving || !this.pending?.ready;
-    accept.textContent = this.saving ? 'Salvando nota e evidência…' : 'Aceitar e salvar evidência';
+    iconButton('accept-exam','check',this.saving ? 'Salvando nota e evidência…' : 'Aceitar e salvar evidência');
     document.getElementById('retake-exam').hidden = (!this.pending && !this.failedCapture) || !!this.saved;
-    document.getElementById('retake-exam').textContent=this.app.camera.isActive?'Fotografar novamente':'Escolher outro arquivo';
+    iconButton('retake-exam','retry',this.app.camera.isActive?'Fotografar novamente':'Escolher outro arquivo');
     document.getElementById('retake-exam').disabled = this.saving;
     document.getElementById('next-exam').hidden = !this.saved;
     document.getElementById('download-current-evidence').hidden = !this.saved;
@@ -326,19 +374,24 @@ export default class ExamReview {
     try {
       const evidence = await this.app.storage.getEvidence(record.id);
       if (!evidence) throw new Error('Imagem não encontrada');
-      this.viewed = record; document.getElementById('evidence-image').src = evidence;
+      this.viewed = record; this.downloadData={id:record.id,blob:this.evidenceBlob(evidence)}; document.getElementById('evidence-image').src = evidence;
       document.getElementById('evidence-dialog').showModal();
     } catch (error) { this.ui._showMessage(error.message, 'error'); }
+  }
+
+  evidenceBlob(data) {
+    if(!data)throw new Error('Imagem não encontrada');
+    const [header,encoded]=data.split(',');const bytes=Uint8Array.from(atob(encoded),c=>c.charCodeAt(0));
+    return new Blob([bytes],{type:header.match(/data:([^;]+)/)[1]});
   }
 
   async download(record) {
     if (!record) return;
     try {
-      const evidence = await this.app.storage.getEvidence(record.id);
-      if (!evidence) throw new Error('Imagem não encontrada');
-      const link = document.createElement('a'); link.href = evidence;
+      const blob=this.downloadData?.id===record.id?this.downloadData.blob:this.evidenceBlob(await this.app.storage.getEvidence(record.id));
+      const link = document.createElement('a'); link.href = URL.createObjectURL(blob);
       const student = (record.student?.name || 'sem-nome').replace(/[^\p{L}\p{N}_-]+/gu, '-').slice(0, 70);
-      link.download = `MarkScan-${student}-${record.id}.jpg`; link.click();
+      link.download = `MarkScan-${student}-${record.id}.jpg`; document.body.appendChild(link); link.click(); link.remove(); setTimeout(()=>URL.revokeObjectURL(link.href),60000);
     } catch (error) { this.ui._showMessage(error.message, 'error'); }
   }
 }

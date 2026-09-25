@@ -59,7 +59,7 @@ const distance = (a, b) => Math.hypot(a[0] - b[0], a[1] - b[1]);
 export default class Alignment {
   constructor() { this.detector = new AR.Detector(); }
 
-  align(image, definition) {
+  align(image, definition, {preview=false} = {}) {
     const solid = definition.type === 'solid-v1';
     const detected = solid ? detectSolid(image, definition, this.detector) : this.detector.detect(image);
     const matches = definition.markers.map(expected => detected.filter(marker => marker.id === expected.id));
@@ -103,7 +103,7 @@ export default class Alignment {
     if (cross.some(value => value <= .008)) throw new Error('Perspectiva excessiva ou folha espelhada. Posicione a câmera mais de frente.');
     const top = [quad[1][0] - quad[0][0], (quad[1][1] - quad[0][1]) * image.height / image.width];
     const rotation = ((Math.round(Math.atan2(top[1], top[0]) * 180 / Math.PI) % 360) + 360) % 360;
-    return { image: warpImage(image, matrix, definition.width, definition.height),
+    return { image: preview ? null : warpImage(image, matrix, definition.width, definition.height),
       metadata: { type: definition.type, matrix, quad, rotation, reprojectionError: Number(error.toFixed(2)), markerIds: definition.markers.map(marker => marker.id), sourceSize: { width: image.width, height: image.height } } };
   }
 }

@@ -10,6 +10,7 @@ const assert = require('node:assert/strict');
     const errors = []; page.on('pageerror', error => errors.push(error.message));
     await page.goto(process.env.MARKSCAN_URL || 'http://localhost:8080/');
     await page.waitForFunction(() => !!window.app?.review);
+    assert.equal(await page.locator('input[type=number]').evaluateAll(inputs=>inputs.every(i=>['numeric','decimal'].includes(i.inputMode))),true);
     await page.evaluate(async () => {
       window.sheet = document.createElement('canvas'); sheet.width = 400; sheet.height = 400;
       window.drawSheet = answers => {
@@ -120,7 +121,9 @@ const assert = require('node:assert/strict');
       catch {} finally { app.storage.db.transaction = nativeTransaction; }
       return !(await app.storage.getHistory()).some(record => record.id === 'aborted') && !(await app.storage.getEvidence('aborted'));
     }), true);
-    await page.locator('#back-models').click();
+    await page.locator('#download-current-evidence').click();
+    assert.equal(await page.evaluate(()=>!!app.camera.isActive),false);
+    assert.equal(await page.locator('#step1').isVisible(),true);
     await page.reload();
     await page.waitForFunction(() => document.querySelectorAll('#history-list tbody tr').length === 3);
     assert.equal(await page.evaluate(() => app.config.get('students.mode')), 'list');

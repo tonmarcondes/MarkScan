@@ -66,6 +66,12 @@ export class Camera {
         });
       }
       
+      const track=stream.getVideoTracks()[0];
+      const capabilities=track?.getCapabilities?.();
+      if(capabilities?.focusMode?.includes('continuous')) {
+        try { await track.applyConstraints({advanced:[{focusMode:'continuous'}]}); } catch { /* Optional camera capability. */ }
+      }
+      if (requestId !== this.requestId) throw new Error('Abertura da câmera cancelada');
       this.isInitialized = true;
       return true;
     } catch (error) {

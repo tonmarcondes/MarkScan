@@ -1,4 +1,4 @@
-# MarkScan OMR · v1.4.0
+# MarkScan OMR · v1.5.0
 
 Aplicativo estático para criar modelos de correção, mapear folhas e corrigir provas no navegador. Imagens, configurações, alunos, notas e evidências ficam no dispositivo. Não há backend de processamento.
 
@@ -125,3 +125,9 @@ JavaScript com módulos ES, HTML e CSS, sem framework de interface. `App` conect
 
 - [PDF.js](https://mozilla.github.io/pdf.js/examples/), versão 6.3.289 da distribuição oficial `pdfjs-dist`, Apache-2.0. Arquivos sem modificação em `js/vendor/pdfjs/`.
 - [js-aruco](https://github.com/jcmellado/js-aruco), revisão `2203d4b5efb601c39054a341bf04702409699383`. Avisos e adaptações em `js/vendor/`. Mantém o detector codificado legado e utilitários de contornos.
+
+### Câmera e conferência (v1.5)
+
+A câmera ocupa a tela e a borda verde indica o recorte exato da fotografia. Toque na imagem para capturar. O ícone de grade alterna os contornos; o alvo acompanha as referências a cada 500 ms, sem calcular ou salvar notas durante a prévia. Sem referências, a grade é fixa e exige o mesmo enquadramento do modelo. A preferência de mostrar grade fica salva. A captura refaz o alinhamento sobre a fotografia original. Foco contínuo é solicitado quando suportado pelo dispositivo.
+
+Os controles de câmera e conferência usam ícones com nomes acessíveis e dicas. Após verificar, ✓ aceita e salva; → inicia a próxima prova; o ícone de saída finaliza. A evidência permanece no histórico, onde o ícone de download exporta um JPEG. Os campos numéricos indicam teclado numérico ou decimal no celular.
